@@ -1,0 +1,20 @@
+# Set default behavior for line endings (auto-detection)
+* text=auto
+
+# Force LF for Python source files
+*.py text eol=lf
+
+# Configuration and documentation files
+*.json text
+*.yaml text
+*.yml text
+*.md text
+*.env text
+
+# Binary files
+*.jpg binary
+*.png binary
+*.gif binary
+*.pyc binary
+*.db binary
+*.sqlite binary
