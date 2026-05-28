@@ -31,6 +31,11 @@ The bot is configured via a `.env` file. Below is a list of available flags:
 
 ## Running the Bot
 
+> **Network requirement:** The bot attaches to the external Docker network `n8n-net` so it can reach other services (e.g. the PostgreSQL container) on the same shared network. Create it once before the first run if it does not already exist:
+> ```bash
+> docker network create n8n-net
+> ```
+
 ### 1. Single Container (Recommended for clean Docker Desktop view)
 To avoid project grouping in Docker Desktop and have the bot appear as a single item named `Fryderyk`, use this method:
 
@@ -45,6 +50,7 @@ docker run -d \
   --name Fryderyk \
   --env-file .env \
   --add-host=host.docker.internal:host-gateway \
+  --network n8n-net \
   --restart unless-stopped \
   fryderyk-bot:0.1.0
 ```
@@ -54,7 +60,7 @@ If you prefer using Docker Compose, run:
 ```bash
 docker compose up -d
 ```
-*Note: This will create a grouped project view in Docker Desktop.*
+*Note: This will create a grouped project view in Docker Desktop. The compose file declares `n8n-net` as an external network, so make sure it exists (see the network requirement above) before bringing the stack up.*
 
 
 ## Database Structure
