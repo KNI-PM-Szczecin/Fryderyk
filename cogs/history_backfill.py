@@ -10,7 +10,7 @@ class HistoryBackfillCog(commands.Cog):
         self.client = client
         self.config = config
         self.database = database
-        self.tz = ZoneInfo("Europe/Warsaw")
+        self.tz = ZoneInfo(config.get_timezone())
 
     @nextcord.slash_command(
         name="backfill_history",
