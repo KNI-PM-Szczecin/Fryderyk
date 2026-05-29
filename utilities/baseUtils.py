@@ -19,6 +19,9 @@ class ConfigReader:
             "database": os.getenv("POSTGRES_DB", "fryderyk_db")
         }
 
+    def get_timezone(self):
+        return os.getenv("TIMEZONE", "Europe/Warsaw")
+
 class Loader:
     def __init__(self, payload: dict[str, any], folder="cogs"):
         self.payload = payload

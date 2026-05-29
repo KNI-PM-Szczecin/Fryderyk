@@ -4,11 +4,12 @@ Fryderyk is an advanced Discord logging bot written in Python using the `nextcor
 
 ## Features
 
-- **Message Logging**: Records message content, edits, authors, and channels (table `messages`).
-- **Voice Logging**: Tracks time spent in voice channels, join moments, and session durations (table `voice`).
-- **Event Logging**: Records reactions, bans, timeouts, channel/role changes, and user joins (table `events`).
+- **Message Logging**: Records message content, edits, authors, and channels (table `messages`). Each row carries the Discord message ID (`discord_id`) and an `is_bot` flag, so re-running ingestion is idempotent and bot vs human traffic can be filtered after the fact.
+- **Voice Logging**: Tracks time spent in voice channels, join moments, and session durations (table `voice`). Includes an `is_bot` flag.
+- **Event Logging**: Records reactions, bans, timeouts, channel/role changes, and user joins (table `events`). Includes an `is_bot` flag.
 - **Data Synchronization**: Automatically updates information about users, guilds, and roles (tables `users`, `guilds`, `roles`, `user_roles`).
-- **Full Timezone Support**: All logs are saved using the `Europe/Warsaw` timezone.
+- **History Backfill**: Admin-only slash command `/backfill_history` walks every readable text channel and thread and inserts past messages (and a capped sample of reactions) into the DB. Messages already present are skipped via `discord_id`, so the command is safe to re-run.
+- **Full Timezone Support**: All time columns are `TIMESTAMPTZ`; values are produced in the configured timezone (`TIMEZONE` env var, default `Europe/Warsaw`) and PostgreSQL handles conversion natively.
 
 ## Requirements
 
@@ -28,6 +29,7 @@ The bot is configured via a `.env` file. Below is a list of available flags:
 | `POSTGRES_USER` | Database user. |
 | `POSTGRES_PASSWORD`| Database password. |
 | `POSTGRES_DB` | Database name. |
+| `TIMEZONE` | Optional. IANA timezone name used by the backfill cog (default `Europe/Warsaw`). |
 
 ## Running the Bot
 

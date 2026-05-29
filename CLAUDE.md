@@ -39,23 +39,29 @@ When adding a new cog, follow the existing constructor signature `__init__(self,
 
 ### Cog responsibilities
 - `cogs/data_sync.py` (`DataSyncCog`) — owns *state* synchronization (users, guilds, roles, user_roles). Runs a full catch-up sweep on `on_ready` and reacts to guild/member/role lifecycle events at runtime. Do not duplicate this work in other cogs.
-- `cogs/message_events.py` — message create/edit logging. Edits are stored as **new rows** with `is_edited=True`, not as updates.
-- `cogs/voice_events.py` — voice session tracking. Sessions are held **in memory** in `self.voice_start_times` keyed by `(user_id, guild_id)`; a bot restart loses any open sessions. AFK channel moves are treated as session-end.
-- `cogs/general_events.py` — moderation/system events (reactions, bans/unbans, timeouts, channel/role lifecycle, message deletes) written to the `events` table via `_log_event`.
+- `cogs/message_events.py` — message create/edit logging. Edits are stored as **new rows** with `is_edited=True`, not as updates. The cog does **not** filter bot authors anymore — every message (including the bot's own and other bots') is written with an `is_bot` flag, and dedup against the live log is handled by `messages.discord_id UNIQUE` + `ON CONFLICT DO NOTHING`.
+- `cogs/voice_events.py` — voice session tracking. Sessions are held **in memory** in `self.voice_start_times` keyed by `(user_id, guild_id)`; a bot restart loses any open sessions. AFK channel moves are treated as session-end. Bots are no longer skipped, so music/utility bots will accumulate sessions — filter on read (`WHERE is_bot = FALSE`) if you don't want them.
+- `cogs/general_events.py` — moderation/system events (reactions, bans/unbans, timeouts, channel/role lifecycle, message deletes) written to the `events` table via `_log_event`. Also unfiltered for bots; same `is_bot` column applies.
+- `cogs/history_backfill.py` (`HistoryBackfillCog`) — admin-only slash command `/backfill_history` that walks every readable text channel and thread via `channel.history(limit=None)` and inserts past messages + a capped sample of reactions. All DB writes go through `asyncio.to_thread` so the Discord event loop keeps responding (heartbeat won't drop). Messages already present (matched by `discord_id`) are skipped, so the command is **idempotent**. Reactions are hard-capped per message via `MAX_REACTIONS_PER_MESSAGE` to avoid pathological pagination/rate-limit blowups. Archived threads are not walked. Progress (% of channels done, current channel, running totals) is reported by editing a single **ephemeral** followup message every `PROGRESS_EDIT_INTERVAL_S` seconds; edit failures (Discord rate-limit or expired interaction token) are logged but don't abort the backfill.
 - `cogs/user_events.py` — placeholder; user sync logic lives in `DataSyncCog`.
 
 ### Database layer
 `utilities/Database.py` is the single access point to PostgreSQL.
 - On construction it (a) connects to the `postgres` admin DB and `CREATE DATABASE` the target if missing, then (b) opens a `SimpleConnectionPool` (1–20), then (c) calls `_create_tables()` which idempotently runs `CREATE TABLE IF NOT EXISTS` for the full schema. Schema changes belong in `_create_tables`; there are no migrations.
+- Idempotent in-place migrations also live at the bottom of `_create_tables` — `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for new columns (`messages.discord_id`, `*.is_bot`) and a `DO $$ ... $$` block that promotes legacy `TIMESTAMP` columns to `TIMESTAMPTZ` interpreting the bare values as local time in the server's current `TimeZone` GUC. Always add new schema changes here so existing databases pick them up on next start.
 - All query helpers (`execute_query`, `fetch_one`, `fetch_all`) borrow a connection from the pool, commit/rollback, and return it. Always use these helpers rather than touching `psycopg2` directly so the pool isn't leaked.
-- Domain helpers are grouped by table: `put_*` / `get_*` / `delete_*`. `put_*` uses `ON CONFLICT … DO UPDATE` for upserts on the entity tables and plain `INSERT` for the append-only log tables (`messages`, `voice`, `events`).
+- Domain helpers are grouped by table: `put_*` / `get_*` / `delete_*`. `put_*` uses `ON CONFLICT … DO UPDATE` for upserts on the entity tables, `ON CONFLICT (discord_id) DO NOTHING` for `messages` (the dedup key for the live + backfill paths), and plain `INSERT` for the append-only `voice` / `events` tables. `message_exists(discord_id)` is provided for the backfill path so it can skip already-logged messages cheaply.
 
 ### Timezone convention
-Every cog stores `self.tz = ZoneInfo("Europe/Warsaw")` and converts UTC timestamps with `.astimezone(self.tz)` (or `datetime.now(self.tz)`) before insertion. Preserve this when adding new event handlers — do not write naive or UTC timestamps to the DB.
+All time columns are `TIMESTAMPTZ`, so PostgreSQL handles strefę natively — what you send is normalized to UTC for storage and rendered in the reader's session timezone on the way out. Convention in cogs: store `self.tz = ZoneInfo(config.get_timezone())` (or a hardcoded `ZoneInfo("Europe/Warsaw")` for the legacy cogs) and convert UTC timestamps with `.astimezone(self.tz)` (or `datetime.now(self.tz)`) before insertion. Do not write naive datetimes — `TIMESTAMPTZ` will assume the server's session timezone, which is brittle.
 
 ### Discord intents
 `main.py` enables `message_content` and `members` on top of the defaults. New event handlers that need privileged data must verify the intent is enabled here and in the Discord Developer Portal.
 
 ## Configuration
 
-Environment variables (loaded via `python-dotenv` in `ConfigReader`): `BOT_TOKEN`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`. Defaults in `ConfigReader.get_db_config` are for local-only use; production reads everything from `.env`.
+Environment variables (loaded via `python-dotenv` in `ConfigReader`):
+- `BOT_TOKEN`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — Discord/PG credentials.
+- `TIMEZONE` (optional, default `Europe/Warsaw`) — IANA tz name returned by `ConfigReader.get_timezone()`. Only `HistoryBackfillCog` reads it right now; the other cogs hardcode `Europe/Warsaw` and should be migrated through `config.get_timezone()` if you ever need to change zones.
+
+Defaults in `ConfigReader.get_db_config` are for local-only use; production reads everything from `.env`.

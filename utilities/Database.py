@@ -366,6 +366,11 @@ class Database:
             return self.fetch_all("SELECT * FROM messages WHERE user_id = %s ORDER BY date DESC LIMIT %s", (user_id, limit))
         return self.fetch_all("SELECT * FROM messages ORDER BY date DESC LIMIT %s", (limit,))
 
+    def message_exists(self, discord_id):
+        if discord_id is None:
+            return False
+        return self.fetch_one("SELECT 1 FROM messages WHERE discord_id = %s LIMIT 1", (discord_id,)) is not None
+
     def delete_message(self, message_id):
         self.execute_query("DELETE FROM messages WHERE id = %s", (message_id,))
 
@@ -409,7 +414,7 @@ class Database:
     def get_events(self, what=None, limit=100):
         if what:
             return self.fetch_all("SELECT * FROM events WHERE what = %s ORDER BY id DESC LIMIT %s", (what, limit))
-        return self.fetch_all("SELECT * ORDER BY id DESC LIMIT %s", (limit,))
+        return self.fetch_all("SELECT * FROM events ORDER BY id DESC LIMIT %s", (limit,))
 
     def delete_event(self, event_id):
         self.execute_query("DELETE FROM events WHERE id = %s", (event_id,))
