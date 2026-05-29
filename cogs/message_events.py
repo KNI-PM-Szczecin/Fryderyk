@@ -1,6 +1,7 @@
 import nextcord
 from nextcord.ext import commands
 from zoneinfo import ZoneInfo
+from utilities.baseUtils import DiscordUtils
 
 class MessageEventsCog(commands.Cog):
     def __init__(self, client, config, database):
@@ -9,33 +10,9 @@ class MessageEventsCog(commands.Cog):
         self.database = database
         self.tz = ZoneInfo("Europe/Warsaw")
 
-    def _parse_mentions(self, message: nextcord.Message):
-        content = message.content
-        
-        # Parse User mentions: <@123...> or <@!123...>
-        for user in message.mentions:
-            mention_str = f"<@{user.id}>"
-            mention_str_nick = f"<@!{user.id}>"
-            replacement = f"user:{user.display_name}"
-            content = content.replace(mention_str, replacement).replace(mention_str_nick, replacement)
-            
-        # Parse Role mentions: <@&123...>
-        for role in message.role_mentions:
-            mention_str = f"<@&{role.id}>"
-            replacement = f"role:{role.name}"
-            content = content.replace(mention_str, replacement)
-            
-        # Parse Channel mentions: <#123...>
-        for channel in message.channel_mentions:
-            mention_str = f"<#{channel.id}>"
-            replacement = f"channel:{channel.name}"
-            content = content.replace(mention_str, replacement)
-            
-        return content
-
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
-        parsed_content = self._parse_mentions(message)
+        parsed_content = DiscordUtils.parse_mentions(message)
         
         # Determine category and guild details
         category_id = None
@@ -52,6 +29,7 @@ class MessageEventsCog(commands.Cog):
 
         # Log new message
         self.database.put_message(
+            discord_id=message.id,
             user_id=message.author.id,
             user_name=message.author.name,
             message=parsed_content,
@@ -73,7 +51,7 @@ class MessageEventsCog(commands.Cog):
         if before.content == after.content:
             return
 
-        parsed_content = self._parse_mentions(after)
+        parsed_content = DiscordUtils.parse_mentions(after)
 
         category_id = None
         category_name = None
@@ -90,7 +68,9 @@ class MessageEventsCog(commands.Cog):
         polish_edit_date = edit_time.astimezone(self.tz)
 
         # Log edited message as a new entry with is_edited=True
+        # We pass discord_id=None to allow multiple rows for the same message in case of multiple edits
         self.database.put_message(
+            discord_id=None,
             user_id=after.author.id,
             user_name=after.author.name,
             message=parsed_content,

@@ -112,6 +112,7 @@ class Database:
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS messages (
                         id BIGSERIAL PRIMARY KEY,
+                        discord_id BIGINT UNIQUE,
                         user_id BIGINT,
                         user_name TEXT,
                         message TEXT,
@@ -165,7 +166,8 @@ class Database:
                     )
                 ''')
 
-                # Migration: Add is_bot column if it doesn't exist (for existing databases)
+                # Migration: Add columns if they don't exist
+                cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
@@ -344,16 +346,17 @@ class Database:
         self.execute_query("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
 
     # --- MESSAGES METHODS ---
-    def put_message(self, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
+    def put_message(self, discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
         query = """
-        INSERT INTO messages (user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO messages (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (discord_id) DO NOTHING
         """
         try:
-            self.execute_query(query, (user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
+            self.execute_query(query, (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
             status = "edited message" if is_edited else "message"
             bot_tag = "[BOT] " if is_bot else ""
-            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S")
+            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S") if date else "Unknown Date"
             print(f"[{timestamp_str}] [DB] Logged {bot_tag}{status} from {user_name} in #{channel_name}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log message from {user_name}: {e}")
@@ -375,7 +378,7 @@ class Database:
         try:
             self.execute_query(query, (user_id, user_name, is_bot, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
             bot_tag = "[BOT] " if is_bot else ""
-            timestamp_str = date_join.strftime("%Y-%m-%d %H:%M:%S")
+            timestamp_str = date_join.strftime("%Y-%m-%d %H:%M:%S") if date_join else "Unknown Date"
             print(f"[{timestamp_str}] [DB] Logged {bot_tag}voice session: {user_name} spent {time_on}s in {channel_name}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log voice session for {user_name}: {e}")
@@ -398,7 +401,7 @@ class Database:
             self.execute_query(query, (user_id, user_name, is_bot, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
             user_label = user_name if user_name else "System"
             bot_tag = "[BOT] " if is_bot else ""
-            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S")
+            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S") if date else "Unknown Date"
             print(f"[{timestamp_str}] [DB] Logged {bot_tag}event '{what}' for {user_label}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log event '{what}': {e}")

@@ -68,3 +68,35 @@ class Loader:
 
                 except Exception as e:
                     print(f"\n > Failed to load {module_name} ({class_name}): {e}\n")
+
+class DiscordUtils:
+    @staticmethod
+    def parse_mentions(message):
+        """
+        Parses Discord mentions (<@ID>, <@!ID>, <@&ID>, <#ID>) into human-readable strings.
+        Used for logging to the database.
+        """
+        content = message.content
+        if not content:
+            return ""
+            
+        # Parse User mentions: <@123...> or <@!123...>
+        for user in message.mentions:
+            mention_str = f"<@{user.id}>"
+            mention_str_nick = f"<@!{user.id}>"
+            replacement = f"user:{user.display_name}"
+            content = content.replace(mention_str, replacement).replace(mention_str_nick, replacement)
+            
+        # Parse Role mentions: <@&123...>
+        for role in message.role_mentions:
+            mention_str = f"<@&{role.id}>"
+            replacement = f"role:{role.name}"
+            content = content.replace(mention_str, replacement)
+            
+        # Parse Channel mentions: <#123...>
+        for channel in message.channel_mentions:
+            mention_str = f"<#{channel.id}>"
+            replacement = f"channel:{channel.name}"
+            content = content.replace(mention_str, replacement)
+            
+        return content
