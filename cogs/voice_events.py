@@ -26,6 +26,7 @@ class VoiceEventsCog(commands.Cog):
             self.database.put_voice(
                 user_id=member.id,
                 user_name=member.name,
+                is_bot=member.bot,
                 time_on=duration,
                 date_join=start_time,
                 channel_id=channel.id,
@@ -38,9 +39,6 @@ class VoiceEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: nextcord.Member, before: nextcord.VoiceState, after: nextcord.VoiceState):
-        if member.bot:
-            return
-
         user_id = member.id
         guild_id = member.guild.id
         session_key = (user_id, guild_id)

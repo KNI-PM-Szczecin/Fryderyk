@@ -116,6 +116,7 @@ class Database:
                         user_name TEXT,
                         message TEXT,
                         is_edited BOOLEAN,
+                        is_bot BOOLEAN DEFAULT FALSE,
                         date TIMESTAMP,
                         edit_date TIMESTAMP,
                         channel_id BIGINT,
@@ -133,6 +134,7 @@ class Database:
                         id BIGSERIAL PRIMARY KEY,
                         user_id BIGINT,
                         user_name TEXT,
+                        is_bot BOOLEAN DEFAULT FALSE,
                         time_on INTEGER,
                         date_join TIMESTAMP,
                         channel_id BIGINT,
@@ -150,6 +152,7 @@ class Database:
                         id BIGSERIAL PRIMARY KEY,
                         user_id BIGINT,
                         user_name TEXT,
+                        is_bot BOOLEAN DEFAULT FALSE,
                         what TEXT,
                         about TEXT,
                         date TIMESTAMP,
@@ -161,6 +164,11 @@ class Database:
                         category_name TEXT
                     )
                 ''')
+
+                # Migration: Add is_bot column if it doesn't exist (for existing databases)
+                cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
+                cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
+                cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
                 conn.commit()
                 print("Database schema initialized successfully")
@@ -296,15 +304,17 @@ class Database:
         self.execute_query("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
 
     # --- MESSAGES METHODS ---
-    def put_message(self, user_id, user_name, message, is_edited, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
+    def put_message(self, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
         query = """
-        INSERT INTO messages (user_id, user_name, message, is_edited, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO messages (user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         try:
-            self.execute_query(query, (user_id, user_name, message, is_edited, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
+            self.execute_query(query, (user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
             status = "edited message" if is_edited else "message"
-            print(f"[DB] Logged {status} from {user_name} in #{channel_name}.")
+            bot_tag = "[BOT] " if is_bot else ""
+            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{timestamp_str}] [DB] Logged {bot_tag}{status} from {user_name} in #{channel_name}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log message from {user_name}: {e}")
 
@@ -317,14 +327,16 @@ class Database:
         self.execute_query("DELETE FROM messages WHERE id = %s", (message_id,))
 
     # --- VOICE METHODS ---
-    def put_voice(self, user_id, user_name, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
+    def put_voice(self, user_id, user_name, is_bot, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
         query = """
-        INSERT INTO voice (user_id, user_name, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO voice (user_id, user_name, is_bot, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         try:
-            self.execute_query(query, (user_id, user_name, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
-            print(f"[DB] Logged voice session: {user_name} spent {time_on}s in {channel_name}.")
+            self.execute_query(query, (user_id, user_name, is_bot, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
+            bot_tag = "[BOT] " if is_bot else ""
+            timestamp_str = date_join.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{timestamp_str}] [DB] Logged {bot_tag}voice session: {user_name} spent {time_on}s in {channel_name}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log voice session for {user_name}: {e}")
 
@@ -337,15 +349,17 @@ class Database:
         self.execute_query("DELETE FROM voice WHERE id = %s", (record_id,))
 
     # --- EVENTS METHODS ---
-    def put_event(self, user_id, user_name, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
+    def put_event(self, user_id, user_name, is_bot, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
         query = """
-        INSERT INTO events (user_id, user_name, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO events (user_id, user_name, is_bot, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         try:
-            self.execute_query(query, (user_id, user_name, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
+            self.execute_query(query, (user_id, user_name, is_bot, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
             user_label = user_name if user_name else "System"
-            print(f"[DB] Logged event '{what}' for {user_label}.")
+            bot_tag = "[BOT] " if is_bot else ""
+            timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{timestamp_str}] [DB] Logged {bot_tag}event '{what}' for {user_label}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log event '{what}': {e}")
 

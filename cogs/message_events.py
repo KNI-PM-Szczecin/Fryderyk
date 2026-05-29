@@ -35,9 +35,6 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
-        if message.author.bot:
-            return
-
         parsed_content = self._parse_mentions(message)
         
         # Determine category and guild details
@@ -59,6 +56,7 @@ class MessageEventsCog(commands.Cog):
             user_name=message.author.name,
             message=parsed_content,
             is_edited=False,
+            is_bot=message.author.bot,
             date=polish_date,
             edit_date=None,
             channel_id=message.channel.id,
@@ -71,9 +69,6 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: nextcord.Message, after: nextcord.Message):
-        if after.author.bot:
-            return
-
         # If content hasn't changed (e.g. only embeds loaded), skip
         if before.content == after.content:
             return
@@ -100,6 +95,7 @@ class MessageEventsCog(commands.Cog):
             user_name=after.author.name,
             message=parsed_content,
             is_edited=True,
+            is_bot=after.author.bot,
             date=polish_date,
             edit_date=polish_edit_date,
             channel_id=after.channel.id,

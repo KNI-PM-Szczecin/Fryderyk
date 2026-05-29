@@ -10,7 +10,7 @@ class GeneralEventsCog(commands.Cog):
         self.database = database
         self.tz = ZoneInfo("Europe/Warsaw")
 
-    def _log_event(self, user_id, user_name, what, about, channel=None, guild=None):
+    def _log_event(self, user_id, user_name, what, about, channel=None, guild=None, is_bot=False):
         channel_id = channel.id if channel else None
         channel_name = channel.name if channel else None
         category_id = channel.category.id if channel and hasattr(channel, 'category') and channel.category else None
@@ -22,44 +22,46 @@ class GeneralEventsCog(commands.Cog):
         now = datetime.now(self.tz)
 
         self.database.put_event(
-            user_id, user_name, what, about, now, channel_id, channel_name,
+            user_id, user_name, is_bot, what, about, now, channel_id, channel_name,
             guild_id, guild_name, category_id, category_name
         )
 
     @commands.Cog.listener()
     async def on_ready(self):
         print(f"GeneralEventsCog: Bot is ready and listening for all events.")
-        self._log_event(self.client.user.id, self.client.user.name, "bot start", f"logged in as {self.client.user}")
+        self._log_event(self.client.user.id, self.client.user.name, "bot start", f"logged in as {self.client.user}", is_bot=True)
 
     # --- REACTION EVENTS ---
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: nextcord.RawReactionActionEvent):
         user = self.client.get_user(payload.user_id)
         user_name = user.name if user else f"Unknown({payload.user_id})"
+        is_bot = user.bot if user else False
         guild = self.client.get_guild(payload.guild_id) if payload.guild_id else None
 
         what = "reaction"
         about = f"added {payload.emoji} to message id {payload.message_id}"
-        self._log_event(payload.user_id, user_name, what, about, guild=guild)
+        self._log_event(payload.user_id, user_name, what, about, guild=guild, is_bot=is_bot)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: nextcord.RawReactionActionEvent):
         user = self.client.get_user(payload.user_id)
         user_name = user.name if user else f"Unknown({payload.user_id})"
+        is_bot = user.bot if user else False
         guild = self.client.get_guild(payload.guild_id) if payload.guild_id else None
 
         what = "reaction"
         about = f"removed {payload.emoji} from message id {payload.message_id}"
-        self._log_event(payload.user_id, user_name, what, about, guild=guild)
+        self._log_event(payload.user_id, user_name, what, about, guild=guild, is_bot=is_bot)
 
     # --- GUILD EVENTS ---
     @commands.Cog.listener()
     async def on_guild_join(self, guild: nextcord.Guild):
-        self._log_event(None, None, "bot joined guild", f"joined guild id {guild.id} ({guild.name})", guild=guild)
+        self._log_event(None, None, "bot joined guild", f"joined guild id {guild.id} ({guild.name})", guild=guild, is_bot=True)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: nextcord.Guild):
-        self._log_event(None, None, "bot left guild", f"left guild id {guild.id} ({guild.name})", guild=guild)
+        self._log_event(None, None, "bot left guild", f"left guild id {guild.id} ({guild.name})", guild=guild, is_bot=True)
 
     # --- CHANNEL EVENTS ---
     @commands.Cog.listener()
@@ -86,13 +88,13 @@ class GeneralEventsCog(commands.Cog):
     async def on_member_join(self, member: nextcord.Member):
         what = "user join"
         about = f"joined guild id {member.guild.id}"
-        self._log_event(member.id, member.name, what, about, guild=member.guild)
+        self._log_event(member.id, member.name, what, about, guild=member.guild, is_bot=member.bot)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: nextcord.Member):
         what = "user leave"
         about = f"left guild id {member.guild.id}"
-        self._log_event(member.id, member.name, what, about, guild=member.guild)
+        self._log_event(member.id, member.name, what, about, guild=member.guild, is_bot=member.bot)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: nextcord.Member, after: nextcord.Member):
@@ -101,23 +103,23 @@ class GeneralEventsCog(commands.Cog):
             if after.communication_disabled_until:
                 what = "timeout"
                 about = f"user timed out until {after.communication_disabled_until}"
-                self._log_event(after.id, after.name, what, about, guild=after.guild)
+                self._log_event(after.id, after.name, what, about, guild=after.guild, is_bot=after.bot)
             else:
                 what = "timeout remove"
                 about = "user timeout removed"
-                self._log_event(after.id, after.name, what, about, guild=after.guild)
+                self._log_event(after.id, after.name, what, about, guild=after.guild, is_bot=after.bot)
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild: nextcord.Guild, user: nextcord.User):
         what = "ban"
         about = f"user {user.id} ({user.name}) was banned from guild {guild.id}"
-        self._log_event(user.id, user.name, what, about, guild=guild)
+        self._log_event(user.id, user.name, what, about, guild=guild, is_bot=user.bot)
 
     @commands.Cog.listener()
     async def on_member_unban(self, guild: nextcord.Guild, user: nextcord.User):
         what = "unban"
         about = f"user {user.id} ({user.name}) was unbanned from guild {guild.id}"
-        self._log_event(user.id, user.name, what, about, guild=guild)
+        self._log_event(user.id, user.name, what, about, guild=guild, is_bot=user.bot)
 
     # --- ROLE EVENTS ---
     @commands.Cog.listener()
@@ -135,11 +137,9 @@ class GeneralEventsCog(commands.Cog):
     # --- MESSAGE DELETE EVENTS ---
     @commands.Cog.listener()
     async def on_message_delete(self, message: nextcord.Message):
-        if message.author.bot:
-            return
         what = "message delete"
         about = f"id: {message.id}, author: {message.author.id}, content: {message.content[:100]}"
-        self._log_event(message.author.id, message.author.name, what, about, channel=message.channel)
+        self._log_event(message.author.id, message.author.name, what, about, channel=message.channel, is_bot=message.author.bot)
 
     @commands.Cog.listener()
     async def on_bulk_message_delete(self, messages: list[nextcord.Message]):
