@@ -75,7 +75,7 @@ class Database:
                         name TEXT,
                         global_name TEXT,
                         is_bot BOOLEAN,
-                        created_at TIMESTAMP,
+                        created_at TIMESTAMPTZ,
                         avatar_url TEXT,
                         banner_url TEXT,
                         public_flags INTEGER
@@ -117,8 +117,8 @@ class Database:
                         message TEXT,
                         is_edited BOOLEAN,
                         is_bot BOOLEAN DEFAULT FALSE,
-                        date TIMESTAMP,
-                        edit_date TIMESTAMP,
+                        date TIMESTAMPTZ,
+                        edit_date TIMESTAMPTZ,
                         channel_id BIGINT,
                         channel_name TEXT,
                         guild_id BIGINT,
@@ -136,7 +136,7 @@ class Database:
                         user_name TEXT,
                         is_bot BOOLEAN DEFAULT FALSE,
                         time_on INTEGER,
-                        date_join TIMESTAMP,
+                        date_join TIMESTAMPTZ,
                         channel_id BIGINT,
                         channel_name TEXT,
                         guild_id BIGINT,
@@ -155,7 +155,7 @@ class Database:
                         is_bot BOOLEAN DEFAULT FALSE,
                         what TEXT,
                         about TEXT,
-                        date TIMESTAMP,
+                        date TIMESTAMPTZ,
                         channel_id BIGINT,
                         channel_name TEXT,
                         guild_id BIGINT,
@@ -169,6 +169,46 @@ class Database:
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
+
+                # Migration: promote legacy TIMESTAMP columns to TIMESTAMPTZ so PG
+                # handles timezone conversion natively. Existing bare values are
+                # interpreted as local time in the server's current TimeZone GUC
+                # (the same setting under which they were originally stored).
+                cursor.execute('''
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='users' AND column_name='created_at'
+                                     AND data_type='timestamp without time zone') THEN
+                            ALTER TABLE users ALTER COLUMN created_at TYPE TIMESTAMPTZ
+                                USING created_at AT TIME ZONE current_setting('TimeZone');
+                        END IF;
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='messages' AND column_name='date'
+                                     AND data_type='timestamp without time zone') THEN
+                            ALTER TABLE messages ALTER COLUMN date TYPE TIMESTAMPTZ
+                                USING date AT TIME ZONE current_setting('TimeZone');
+                        END IF;
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='messages' AND column_name='edit_date'
+                                     AND data_type='timestamp without time zone') THEN
+                            ALTER TABLE messages ALTER COLUMN edit_date TYPE TIMESTAMPTZ
+                                USING edit_date AT TIME ZONE current_setting('TimeZone');
+                        END IF;
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='voice' AND column_name='date_join'
+                                     AND data_type='timestamp without time zone') THEN
+                            ALTER TABLE voice ALTER COLUMN date_join TYPE TIMESTAMPTZ
+                                USING date_join AT TIME ZONE current_setting('TimeZone');
+                        END IF;
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='events' AND column_name='date'
+                                     AND data_type='timestamp without time zone') THEN
+                            ALTER TABLE events ALTER COLUMN date TYPE TIMESTAMPTZ
+                                USING date AT TIME ZONE current_setting('TimeZone');
+                        END IF;
+                    END $$;
+                ''')
 
                 conn.commit()
                 print("Database schema initialized successfully")
