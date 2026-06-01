@@ -75,6 +75,14 @@ class HistoryBackfillCog(commands.Cog):
                 print(f"[Backfill] Progress edit failed: {e}")
 
         for channel in target_channels:
+            # Skip blacklisted channels
+            is_blacklisted = await asyncio.to_thread(
+                self.database.is_blacklisted, guild.id, channel.id
+            )
+            if is_blacklisted:
+                channels_done += 1
+                continue
+
             per_channel_inserted = 0
             per_channel_skipped = 0
             walked = False

@@ -14,6 +14,16 @@ class VoiceEventsCog(commands.Cog):
     def _process_voice_session(self, member, guild_id, session_data):
         start_time = session_data['start_time']
         channel = session_data['channel']
+
+        # Check if channel is blacklisted
+        if self.database.is_blacklisted(guild_id, channel.id):
+            return
+
+        # Check if any of member's roles are blacklisted
+        if hasattr(member, 'roles'):
+            for role in member.roles:
+                if self.database.is_blacklisted(guild_id, role.id):
+                    return
         
         # Current time in Polish timezone
         now = datetime.now(self.tz)

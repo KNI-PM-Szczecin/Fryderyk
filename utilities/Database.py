@@ -166,6 +166,16 @@ class Database:
                     )
                 ''')
 
+                # Log Blacklist Table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS log_blacklist (
+                        guild_id BIGINT,
+                        disabled_id BIGINT,
+                        type TEXT,
+                        PRIMARY KEY (guild_id, disabled_id)
+                    )
+                ''')
+
                 # Migration: Add columns if they don't exist
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
@@ -418,3 +428,27 @@ class Database:
 
     def delete_event(self, event_id):
         self.execute_query("DELETE FROM events WHERE id = %s", (event_id,))
+
+    # --- BLACKLIST METHODS ---
+    def put_blacklist_item(self, guild_id, disabled_id, item_type):
+        query = """
+        INSERT INTO log_blacklist (guild_id, disabled_id, type)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (guild_id, disabled_id) DO UPDATE SET type = EXCLUDED.type
+        """
+        try:
+            self.execute_query(query, (guild_id, disabled_id, item_type))
+            print(f"[DB] Blacklisted {item_type} {disabled_id} in guild {guild_id}.")
+        except Exception as e:
+            print(f"[DB ERR] Failed to blacklist {disabled_id}: {e}")
+
+    def delete_blacklist_item(self, guild_id, disabled_id):
+        self.execute_query("DELETE FROM log_blacklist WHERE guild_id = %s AND disabled_id = %s", (guild_id, disabled_id))
+
+    def is_blacklisted(self, guild_id, disabled_id):
+        if not guild_id or not disabled_id:
+            return False
+        return self.fetch_one("SELECT 1 FROM log_blacklist WHERE guild_id = %s AND disabled_id = %s LIMIT 1", (guild_id, disabled_id)) is not None
+
+    def get_blacklist(self, guild_id):
+        return self.fetch_all("SELECT disabled_id, type FROM log_blacklist WHERE guild_id = %s", (guild_id,))

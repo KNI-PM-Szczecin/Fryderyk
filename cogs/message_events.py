@@ -12,6 +12,19 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
+        if not message.guild:
+            return
+
+        # Check if channel is blacklisted
+        if self.database.is_blacklisted(message.guild.id, message.channel.id):
+            return
+
+        # Check if any of author's roles are blacklisted
+        if hasattr(message.author, 'roles'):
+            for role in message.author.roles:
+                if self.database.is_blacklisted(message.guild.id, role.id):
+                    return
+
         parsed_content = DiscordUtils.parse_mentions(message)
         
         # Determine category and guild details
@@ -47,6 +60,19 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: nextcord.Message, after: nextcord.Message):
+        if not after.guild:
+            return
+
+        # Check if channel is blacklisted
+        if self.database.is_blacklisted(after.guild.id, after.channel.id):
+            return
+
+        # Check if any of author's roles are blacklisted
+        if hasattr(after.author, 'roles'):
+            for role in after.author.roles:
+                if self.database.is_blacklisted(after.guild.id, role.id):
+                    return
+
         # If content hasn't changed (e.g. only embeds loaded), skip
         if before.content == after.content:
             return

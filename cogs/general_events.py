@@ -11,11 +11,27 @@ class GeneralEventsCog(commands.Cog):
         self.tz = ZoneInfo("Europe/Warsaw")
 
     def _log_event(self, user_id, user_name, what, about, channel=None, guild=None, is_bot=False):
+        guild_id = guild.id if guild else (channel.guild.id if channel else None)
         channel_id = channel.id if channel else None
+
+        if guild_id:
+            # Check if channel is blacklisted
+            if channel_id and self.database.is_blacklisted(guild_id, channel_id):
+                return
+
+            # Check if user roles are blacklisted
+            if user_id:
+                guild_obj = guild or (channel.guild if channel else self.client.get_guild(guild_id))
+                if guild_obj:
+                    member = guild_obj.get_member(user_id)
+                    if member:
+                        for role in member.roles:
+                            if self.database.is_blacklisted(guild_id, role.id):
+                                return
+
         channel_name = channel.name if channel else None
         category_id = channel.category.id if channel and hasattr(channel, 'category') and channel.category else None
         category_name = channel.category.name if channel and hasattr(channel, 'category') and channel.category else None
-        guild_id = guild.id if guild else (channel.guild.id if channel else None)
         guild_name = guild.name if guild else (channel.guild.name if channel else None)
 
         # Current time in Polish timezone
