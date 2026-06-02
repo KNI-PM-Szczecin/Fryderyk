@@ -12,6 +12,11 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
+        # Skip ephemeral messages authored by bots (e.g. our own backfill
+        # progress updates) — they're not real chat content.
+        if message.author.bot and message.flags.ephemeral:
+            return
+
         if not message.guild:
             return
 
@@ -60,6 +65,10 @@ class MessageEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: nextcord.Message, after: nextcord.Message):
+        # Skip ephemeral messages authored by bots (mirrors the on_message guard).
+        if after.author.bot and after.flags.ephemeral:
+            return
+
         if not after.guild:
             return
 
