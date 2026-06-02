@@ -47,6 +47,7 @@ class VersionCog(commands.Cog):
         name="version",
         description="Pokaż aktualną wersję bota (ostatni commit)",
         dm_permission=False,
+        guild_ids=[1357420845970100335],
     )
     async def version(self, interaction: Interaction):
         commit_hash, commit_dt = _read_git_info()
