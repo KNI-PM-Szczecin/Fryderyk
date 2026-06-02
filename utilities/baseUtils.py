@@ -22,6 +22,17 @@ class ConfigReader:
     def get_timezone(self):
         return os.getenv("TIMEZONE", "Europe/Warsaw")
 
+    def get_n8n_webhook_url(self, env: str) -> str:
+        if env == "production":
+            return os.getenv(
+                "N8N_WEBHOOK_PRODUCTION_URL",
+                "http://host.docker.internal:5678/webhook/b9e64b80-b5e4-4a45-9a21-55663dc072de",
+            )
+        return os.getenv(
+            "N8N_WEBHOOK_TEST_URL",
+            "http://host.docker.internal:5678/webhook-test/b9e64b80-b5e4-4a45-9a21-55663dc072de",
+        )
+
 class Loader:
     def __init__(self, payload: dict[str, any], folder="cogs"):
         self.payload = payload
