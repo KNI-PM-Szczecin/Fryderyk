@@ -76,7 +76,7 @@ class LogBlacklistCog(commands.Cog):
 
         response = "**Czarna lista logowania:**\n"
         for item_id, item_type in items:
-            mention = f"<#{item_id}>" if "channel" in item_type else f"<@&{item_id}>"
+            mention = f"<@&{item_id}>" if item_type == "role" else f"<#{item_id}>"
             response += f"- {mention} ({item_type})\n"
 
         await interaction.response.send_message(response, ephemeral=True)
