@@ -33,10 +33,10 @@ class SummarizeCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         payload = {
-            "channel_id": channel.id,
+            "channel_id": str(channel.id),
             "channel_name": channel.name,
-            "guild_id": interaction.guild.id,
-            "requested_by": interaction.user.id,
+            "guild_id": str(interaction.guild.id),
+            "requested_by": str(interaction.user.id),
         }
 
         url = self.config.get_n8n_webhook_url(env)

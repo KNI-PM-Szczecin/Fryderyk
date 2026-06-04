@@ -33,9 +33,9 @@ class ProfileCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         payload = {
-            "user_id": member.id,
-            "guild_id": interaction.guild.id,
-            "requested_by": interaction.user.id,
+            "user_id": str(member.id),
+            "guild_id": str(interaction.guild.id),
+            "requested_by": str(interaction.user.id),
         }
 
         url = self.config.get_n8n_profile_webhook_url(env)
