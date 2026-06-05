@@ -32,10 +32,13 @@ class SummarizeCog(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=True)
 
+        source_channel = interaction.channel
         payload = {
             "channel_id": str(channel.id),
             "channel_name": channel.name,
             "guild_id": str(interaction.guild.id),
+            "source_channel_id": str(source_channel.id) if source_channel else None,
+            "source_channel_name": getattr(source_channel, "name", None),
             "requested_by": str(interaction.user.id),
         }
 

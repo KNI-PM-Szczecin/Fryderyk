@@ -32,9 +32,12 @@ class ProfileCog(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=True)
 
+        source_channel = interaction.channel
         payload = {
             "user_id": str(member.id),
             "guild_id": str(interaction.guild.id),
+            "source_channel_id": str(source_channel.id) if source_channel else None,
+            "source_channel_name": getattr(source_channel, "name", None),
             "requested_by": str(interaction.user.id),
         }
 
