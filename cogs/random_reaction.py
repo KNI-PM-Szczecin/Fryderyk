@@ -71,8 +71,15 @@ GIF_LIST = [
     "https://tenor.com/view/linus-torvalds-linus-nvidia-fuck-you-gif-19475186",
     "https://cdn.discordapp.com/attachments/785336580646109197/1503862363521024110/sixsayven.gif",
     "https://gif.fxtwitter.com/tweet_video/HFmQSCVakAULqnI.webp",
-    "https://tenor.com/view/rip-bozo-gif-22294771"
-
+    "https://tenor.com/view/rip-bozo-gif-22294771",
+    "https://gifconvert.vxtwitter.com/convert.avif?url=https://video.twimg.com/tweet_video/HKFV5T1W8AAjMQO.mp4",
+    "https://giphy.com/gifs/big-yahu-tel-aviv-meme-scared-NLFUTRzPvI9qPOAuNW",
+    "https://tenor.com/view/rozmowa-chuj-chuj-z-butem-rozmowa-chuja-z-butem-conversation-gif-12795911501748434798",
+    "https://tenor.com/view/enter-gif-5985412860797742263",
+    "https://tenor.com/view/dbz-perfect-cell-punching-gif-1489960437663783265",
+    "https://tenor.com/view/hatsune-miku-miku-hatsune-miku-angry-not-happy-gif-10473291184535189680",
+    "https://tenor.com/view/reze-tongue-out-reze-chainsaw-man-moving-her-head-reze-head-moving-reze-chainsaw-man-gif-15937294161332759512",
+    "https://media.discordapp.net/attachments/772006981534744577/1029706054407303178/ezgif.com-gif-maker_-_2022-07-15T183109.613.gif?ex=6a35c63e&is=6a3474be&hm=7ff409cd43b81705fff4cb9a8f44e90affa6a816e5a57eeb2f62020121184111&"
 ]
 
 class RandomReactionCog(commands.Cog):
