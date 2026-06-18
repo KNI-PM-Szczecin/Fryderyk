@@ -79,7 +79,8 @@ GIF_LIST = [
     "https://tenor.com/view/dbz-perfect-cell-punching-gif-1489960437663783265",
     "https://tenor.com/view/hatsune-miku-miku-hatsune-miku-angry-not-happy-gif-10473291184535189680",
     "https://tenor.com/view/reze-tongue-out-reze-chainsaw-man-moving-her-head-reze-head-moving-reze-chainsaw-man-gif-15937294161332759512",
-    "https://media.discordapp.net/attachments/772006981534744577/1029706054407303178/ezgif.com-gif-maker_-_2022-07-15T183109.613.gif?ex=6a35c63e&is=6a3474be&hm=7ff409cd43b81705fff4cb9a8f44e90affa6a816e5a57eeb2f62020121184111&"
+    "https://media.discordapp.net/attachments/772006981534744577/1029706054407303178/ezgif.com-gif-maker_-_2022-07-15T183109.613.gif?ex=6a35c63e&is=6a3474be&hm=7ff409cd43b81705fff4cb9a8f44e90affa6a816e5a57eeb2f62020121184111&",
+    "https://tenor.com/view/cute-eyes-please-boba-eyes-besitoskz-sparkling-eyes-gif-11664622827672562207"
 ]
 
 class RandomReactionCog(commands.Cog):
@@ -98,7 +99,7 @@ class RandomReactionCog(commands.Cog):
                 if self.database.is_gif_blacklisted(message.guild.id, role.id): return
 
         is_mentioned = self.client.user in message.mentions
-        has_magic_word = "samuel" in message.content.lower()
+        has_magic_word = "sam.uel" in message.content.lower()
         chance = 10 if is_mentioned else 500
 
         if has_magic_word or random.randint(1, chance) == 1:
