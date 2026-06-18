@@ -48,11 +48,11 @@ class ConfigReader:
         if env == "production":
             return os.getenv(
                 "N8N_SPEAK_WEBHOOK_PRODUCTION_URL",
-                "http://localhost:5678/webhook/wypowiedz-sie",
+                "http://host.docker.internal:5678/webhook/wypowiedz-sie",
             )
         return os.getenv(
             "N8N_SPEAK_WEBHOOK_TEST_URL",
-            "http://localhost:5678/webhook-test/wypowiedz-sie",
+            "http://host.docker.internal:5678/webhook-test/wypowiedz-sie",
         )
 
 class Loader:
