@@ -44,6 +44,11 @@ class SpeakUpCog(commands.Cog):
                             f"Fryderyk zabiera głos na {channel.mention} (`{env}`).",
                             ephemeral=True,
                         )
+                    elif resp.status == 404:
+                        await interaction.followup.send(
+                            "Fryderyk ma spanko 😴",
+                            ephemeral=True,
+                        )
                     else:
                         await interaction.followup.send(
                             f"Webhook zwrócił błąd: HTTP {resp.status}.",
