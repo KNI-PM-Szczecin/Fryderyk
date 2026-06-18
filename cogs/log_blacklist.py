@@ -17,10 +17,11 @@ class LogBlacklistCog(commands.Cog):
     async def blacklist(self, interaction: Interaction):
         pass
 
-    @blacklist.subcommand(name="add", description="Dodaj kanał lub rolę do czarnej listy (nie będą logowane)")
+    @blacklist.subcommand(name="add", description="Dodaj kanał lub rolę do czarnej listy")
     async def add(
         self, 
         interaction: Interaction,
+        funkcja: str = SlashOption(name="funkcja", description="Funkcja do zablokowania", choices={"Logowanie wiadomości": "log", "Wysyłanie GIF-ów": "gif_react"}, required=True),
         channel: nextcord.abc.GuildChannel = SlashOption(name="kanal", description="Kanał do zablokowania", required=False),
         role: nextcord.Role = SlashOption(name="rola", description="Rola do zablokowania", required=False)
     ):
@@ -29,25 +30,27 @@ class LogBlacklistCog(commands.Cog):
             return
 
         guild_id = interaction.guild.id
+        db_put = self.database.put_blacklist_item if funkcja == "log" else self.database.put_gif_blacklist_item
         
         if channel:
             item_id = channel.id
             item_type = str(channel.type)
             item_name = channel.name
-            self.database.put_blacklist_item(guild_id, item_id, item_type)
-            await interaction.response.send_message(f"Kanał {item_name} został dodany do czarnej listy.", ephemeral=True)
+            db_put(guild_id, item_id, item_type)
+            await interaction.response.send_message(f"Kanał {item_name} został dodany do czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
         if role:
             item_id = role.id
             item_type = "role"
             item_name = role.name
-            self.database.put_blacklist_item(guild_id, item_id, item_type)
-            await interaction.response.send_message(f"Rola {item_name} została dodana do czarnej listy.", ephemeral=True)
+            db_put(guild_id, item_id, item_type)
+            await interaction.response.send_message(f"Rola {item_name} została dodana do czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
     @blacklist.subcommand(name="remove", description="Usuń kanał lub rolę z czarnej listy")
     async def remove(
         self, 
         interaction: Interaction,
+        funkcja: str = SlashOption(name="funkcja", description="Funkcja z której usuwamy blokadę", choices={"Logowanie wiadomości": "log", "Wysyłanie GIF-ów": "gif_react"}, required=True),
         channel: nextcord.abc.GuildChannel = SlashOption(name="kanal", description="Kanał do usunięcia", required=False),
         role: nextcord.Role = SlashOption(name="rola", description="Rola do usunięcia", required=False)
     ):
@@ -56,25 +59,31 @@ class LogBlacklistCog(commands.Cog):
             return
 
         guild_id = interaction.guild.id
+        db_delete = self.database.delete_blacklist_item if funkcja == "log" else self.database.delete_gif_blacklist_item
         
         if channel:
-            self.database.delete_blacklist_item(guild_id, channel.id)
-            await interaction.response.send_message(f"Kanał {channel.name} został usunięty z czarnej listy.", ephemeral=True)
+            db_delete(guild_id, channel.id)
+            await interaction.response.send_message(f"Kanał {channel.name} został usunięty z czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
         if role:
-            self.database.delete_blacklist_item(guild_id, role.id)
-            await interaction.response.send_message(f"Rola {role.name} została usunięta z czarnej listy.", ephemeral=True)
+            db_delete(guild_id, role.id)
+            await interaction.response.send_message(f"Rola {role.name} została usunięta z czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
     @blacklist.subcommand(name="list", description="Lista zablokowanych kanałów i ról")
-    async def list_blacklist(self, interaction: Interaction):
+    async def list_blacklist(
+        self, 
+        interaction: Interaction,
+        funkcja: str = SlashOption(name="funkcja", description="Funkcja dla której sprawdzamy listę", choices={"Logowanie wiadomości": "log", "Wysyłanie GIF-ów": "gif_react"}, required=True)
+    ):
         guild_id = interaction.guild.id
-        items = self.database.get_blacklist(guild_id)
+        db_get = self.database.get_blacklist if funkcja == "log" else self.database.get_gif_blacklist
+        items = db_get(guild_id)
 
         if not items:
-            await interaction.response.send_message("Czarna lista jest pusta.", ephemeral=True)
+            await interaction.response.send_message(f"Czarna lista dla funkcji '{funkcja}' jest pusta.", ephemeral=True)
             return
 
-        response = "**Czarna lista logowania:**\n"
+        response = f"**Czarna lista dla funkcji '{funkcja}':**\n"
         for item_id, item_type in items:
             mention = f"<@&{item_id}>" if item_type == "role" else f"<#{item_id}>"
             response += f"- {mention} ({item_type})\n"

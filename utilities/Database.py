@@ -176,11 +176,33 @@ class Database:
                     )
                 ''')
 
+                # GIF Blacklist Table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS gif_blacklist (
+                        guild_id BIGINT,
+                        disabled_id BIGINT,
+                        type TEXT,
+                        PRIMARY KEY (guild_id, disabled_id)
+                    )
+                ''')
+
                 # Migration: Add columns if they don't exist
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
+
+                # Migration: Remove feature column from log_blacklist if it was added
+                cursor.execute('''
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_blacklist' AND column_name='feature') THEN
+                            ALTER TABLE log_blacklist DROP CONSTRAINT IF EXISTS log_blacklist_pkey CASCADE;
+                            ALTER TABLE log_blacklist DROP COLUMN feature;
+                            ALTER TABLE log_blacklist ADD PRIMARY KEY (guild_id, disabled_id);
+                        END IF;
+                    END $$;
+                ''')
 
                 # Migration: promote legacy TIMESTAMP columns to TIMESTAMPTZ so PG
                 # handles timezone conversion natively. Existing bare values are
@@ -452,3 +474,27 @@ class Database:
 
     def get_blacklist(self, guild_id):
         return self.fetch_all("SELECT disabled_id, type FROM log_blacklist WHERE guild_id = %s", (guild_id,))
+
+    # --- GIF BLACKLIST METHODS ---
+    def put_gif_blacklist_item(self, guild_id, disabled_id, item_type):
+        query = """
+        INSERT INTO gif_blacklist (guild_id, disabled_id, type)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (guild_id, disabled_id) DO UPDATE SET type = EXCLUDED.type
+        """
+        try:
+            self.execute_query(query, (guild_id, disabled_id, item_type))
+            print(f"[DB] GIF-Blacklisted {item_type} {disabled_id} in guild {guild_id}.")
+        except Exception as e:
+            print(f"[DB ERR] Failed to GIF-blacklist {disabled_id}: {e}")
+
+    def delete_gif_blacklist_item(self, guild_id, disabled_id):
+        self.execute_query("DELETE FROM gif_blacklist WHERE guild_id = %s AND disabled_id = %s", (guild_id, disabled_id))
+
+    def is_gif_blacklisted(self, guild_id, disabled_id):
+        if not guild_id or not disabled_id:
+            return False
+        return self.fetch_one("SELECT 1 FROM gif_blacklist WHERE guild_id = %s AND disabled_id = %s LIMIT 1", (guild_id, disabled_id)) is not None
+
+    def get_gif_blacklist(self, guild_id):
+        return self.fetch_all("SELECT disabled_id, type FROM gif_blacklist WHERE guild_id = %s", (guild_id,))
