@@ -91,8 +91,9 @@ class RandomReactionCog(commands.Cog):
                 if self.database.is_gif_blacklisted(message.guild.id, role.id): return
 
         is_mentioned = self.client.user in message.mentions
+        has_magic_word = "samuel" in message.content.lower()
         chance = 10 if is_mentioned else 500
 
-        if random.randint(1, chance) == 1:
+        if has_magic_word or random.randint(1, chance) == 1:
             gif_url = random.choice(GIF_LIST)
             await message.reply(gif_url)
