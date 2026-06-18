@@ -44,6 +44,17 @@ class ConfigReader:
             "http://localhost:5678/webhook-test/36069440-da51-423b-8ede-acba6b17a3a7",
         )
 
+    def get_n8n_speak_webhook_url(self, env: str) -> str:
+        if env == "production":
+            return os.getenv(
+                "N8N_SPEAK_WEBHOOK_PRODUCTION_URL",
+                "http://localhost:5678/webhook/wypowiedz-sie",
+            )
+        return os.getenv(
+            "N8N_SPEAK_WEBHOOK_TEST_URL",
+            "http://localhost:5678/webhook-test/wypowiedz-sie",
+        )
+
 class Loader:
     def __init__(self, payload: dict[str, any], folder="cogs"):
         self.payload = payload
