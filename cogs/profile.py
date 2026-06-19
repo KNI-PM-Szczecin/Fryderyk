@@ -2,6 +2,7 @@ import aiohttp
 import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption
+from decorators import cog_cooldown
 
 
 class ProfileCog(commands.Cog):
@@ -15,6 +16,7 @@ class ProfileCog(commands.Cog):
         dm_permission=False,
         guild_ids=[1357420845970100335],
     )
+    @cog_cooldown(rate=1, per=20.0, message="**Zwolnij!** Fryderyk lubi wooolno, następne wygenerowanie profilu możliwe za **&value&s**.", per_guild=True)
     async def profile(
         self,
         interaction: Interaction,

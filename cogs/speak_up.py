@@ -2,6 +2,7 @@ import aiohttp
 import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption
+from decorators import cog_cooldown
 
 
 class SpeakUpCog(commands.Cog):
@@ -15,6 +16,7 @@ class SpeakUpCog(commands.Cog):
         dm_permission=False,
         guild_ids=[1357420845970100335],
     )
+    @cog_cooldown(rate=1, per=20.0, message="**Zwolnij!** Fryderyk lubi wooolno, następne zabranie głosu możliwe za **&value&s**.", per_guild=True)
     async def zabierz_glos(
         self,
         interaction: Interaction,
