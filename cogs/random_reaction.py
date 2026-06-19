@@ -109,7 +109,7 @@ class RandomReactionCog(commands.Cog):
 
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()
-        chance = 10 if is_mentioned else 500
+        chance = 100 if is_mentioned else 500
 
         if has_magic_word or random.randint(1, chance) == 1:
             gif_url = random.choice(GIF_LIST)
