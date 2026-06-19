@@ -80,7 +80,16 @@ GIF_LIST = [
     "https://tenor.com/view/hatsune-miku-miku-hatsune-miku-angry-not-happy-gif-10473291184535189680",
     "https://tenor.com/view/reze-tongue-out-reze-chainsaw-man-moving-her-head-reze-head-moving-reze-chainsaw-man-gif-15937294161332759512",
     "https://media.discordapp.net/attachments/772006981534744577/1029706054407303178/ezgif.com-gif-maker_-_2022-07-15T183109.613.gif?ex=6a35c63e&is=6a3474be&hm=7ff409cd43b81705fff4cb9a8f44e90affa6a816e5a57eeb2f62020121184111&",
-    "https://tenor.com/view/cute-eyes-please-boba-eyes-besitoskz-sparkling-eyes-gif-11664622827672562207"
+    "https://tenor.com/view/cute-eyes-please-boba-eyes-besitoskz-sparkling-eyes-gif-11664622827672562207",
+    "https://tenor.com/view/fadding-dog-traumatized-gif-10801559770686219962",
+    "https://tenor.com/view/spongebob-spongebob-meme-trauma-imagination-spongebob-gif-23778560",
+    "https://tenor.com/view/pips-everywhere-gif-6995441973677413110",
+    "https://tenor.com/view/war-vietnam-ptsd-shell-shock-moment-gif-3022747568394546158",
+    "https://tenor.com/view/maymay-entrata-marydale-smash-frying-pan-mad-gif-17894317",
+    "https://tenor.com/view/spinning-the-pan-viralhog-playing-with-the-pan-turning-the-pan-gif-26489053",
+    "https://tenor.com/view/lol-cats-cat-falling-gif-14250040379878929810",
+    "https://tenor.com/view/cat-cat-bread-cat-loaf-cread-cat-dough-gif-15808640102646761906",
+    "https://tenor.com/view/enough-gif-18442674"
 ]
 
 class RandomReactionCog(commands.Cog):
