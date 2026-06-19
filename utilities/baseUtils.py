@@ -55,6 +55,17 @@ class ConfigReader:
             "http://host.docker.internal:5678/webhook-test/wypowiedz-sie",
         )
 
+    def get_n8n_mention_webhook_url(self, env: str) -> str:
+        if env == "production":
+            return os.getenv(
+                "N8N_MENTION_WEBHOOK_PRODUCTION_URL",
+                "http://host.docker.internal:5678/webhook/fryderyk-mention",
+            )
+        return os.getenv(
+            "N8N_MENTION_WEBHOOK_TEST_URL",
+            "http://host.docker.internal:5678/webhook-test/fryderyk-mention",
+        )
+
 class Loader:
     def __init__(self, payload: dict[str, any], folder="cogs"):
         self.payload = payload
