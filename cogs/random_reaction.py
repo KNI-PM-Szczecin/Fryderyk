@@ -89,7 +89,12 @@ GIF_LIST = [
     "https://tenor.com/view/spinning-the-pan-viralhog-playing-with-the-pan-turning-the-pan-gif-26489053",
     "https://tenor.com/view/lol-cats-cat-falling-gif-14250040379878929810",
     "https://tenor.com/view/cat-cat-bread-cat-loaf-cread-cat-dough-gif-15808640102646761906",
-    "https://tenor.com/view/enough-gif-18442674"
+    "https://tenor.com/view/enough-gif-18442674",
+    "https://tenor.com/view/trollface-gif-8242347154758580084",
+    "https://tenor.com/view/sticker-yung-joc-crying-meme-man-crying-meme-thebeyonderrrr-gif-828328460466032722",
+    "https://giphy.com/gifs/freddy-bite-of-87-edjstar-RvDqtHk1PP6Wvwn9k7",
+    "https://giphy.com/gifs/fnaf-three-3-creepy-spring-trap-head-glitch-3lrsPjxa4dFzB0f4TE",
+    "https://tenor.com/view/ashley-graves-the-coffin-of-andy-and-leyley-tcoal-gif-10201382978478232086"
 ]
 
 class RandomReactionCog(commands.Cog):
@@ -109,7 +114,7 @@ class RandomReactionCog(commands.Cog):
 
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()
-        chance = 100 if is_mentioned else 500
+        chance = 50 if is_mentioned else 100
 
         if has_magic_word or random.randint(1, chance) == 1:
             gif_url = random.choice(GIF_LIST)
