@@ -13,7 +13,7 @@ Fryderyk is an advanced Discord logging bot written in Python using the `nextcor
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.12+
 - External PostgreSQL Database
 - Libraries listed in `requirements.txt`
 

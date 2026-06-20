@@ -1,4 +1,4 @@
-nextcord
+nextcord==3.2.0
 aiohttp
 psycopg2-binary
 python-dotenv
