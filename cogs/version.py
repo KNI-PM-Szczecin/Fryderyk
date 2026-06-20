@@ -57,8 +57,7 @@ class VersionCog(commands.Cog):
     @nextcord.slash_command(
         name="version",
         description="Pokaż aktualną wersję bota (ostatni commit)",
-        dm_permission=False,
-        guild_ids=[1357420845970100335],
+        contexts=[nextcord.InteractionContextType.guild],
     )
     async def version(self, interaction: Interaction):
         """

@@ -2,3 +2,4 @@ nextcord
 aiohttp
 psycopg2-binary
 python-dotenv
+pdoc

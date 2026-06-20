@@ -21,8 +21,7 @@ class ProfileCog(commands.Cog):
     @nextcord.slash_command(
         name="profile",
         description="Wyślij ID wybranego użytkownika do n8n",
-        dm_permission=False,
-        guild_ids=[1357420845970100335],
+        contexts=[nextcord.InteractionContextType.guild],
     )
     @cog_cooldown(rate=1, per=20.0, message="**Zwolnij!** Fryderyk lubi wooolno, następne wygenerowanie profilu możliwe za **&value&s**.", per_guild=True)
     async def profile(

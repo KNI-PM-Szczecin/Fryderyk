@@ -21,8 +21,7 @@ class SummarizeCog(commands.Cog):
     @nextcord.slash_command(
         name="summarize",
         description="Wyślij żądanie podsumowania kanału do n8n",
-        dm_permission=False,
-        guild_ids=[1357420845970100335],
+        contexts=[nextcord.InteractionContextType.guild],
     )
     @cog_cooldown(rate=1, per=20.0, message="**Zwolnij!** Fryderyk lubi wooolno, następne podsumowanie możliwe za **&value&s**.", per_guild=True)
     async def summarize(

@@ -18,7 +18,7 @@ class LogBlacklistCog(commands.Cog):
     @nextcord.slash_command(
         name="blacklist", 
         description="Zarządzanie czarną listą logowania",
-        dm_permission=False,
+        contexts=[nextcord.InteractionContextType.guild],
         default_member_permissions=nextcord.Permissions(administrator=True)
     )
     async def blacklist(self, interaction: Interaction):

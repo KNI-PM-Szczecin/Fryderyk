@@ -2,6 +2,7 @@ import nextcord
 from nextcord.ext import commands
 from utilities import baseUtils, Database
 import os
+import subprocess
 
 def main():
     """
@@ -11,6 +12,13 @@ def main():
     """
     config = baseUtils.ConfigReader()
     database = Database.Database(config.get_db_config())
+
+    try:
+        print("Trwa automatyczne generowanie dokumentacji...")
+        subprocess.run(["pdoc", "./cogs", "./utilities", "main.py", "-o", "docs"], check=False)
+        print("Dokumentacja zaktualizowana w folderze /docs/.")
+    except Exception as e:
+        print(f"Błąd podczas generowania dokumentacji: {e}")
 
 
     intents = nextcord.Intents.default()
