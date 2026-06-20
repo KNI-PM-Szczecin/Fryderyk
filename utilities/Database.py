@@ -186,6 +186,24 @@ class Database:
                     )
                 ''')
 
+                # User Profiles Table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS user_profiles (
+                        user_id BIGINT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+                        nick TEXT,
+                        plec TEXT,
+                        zaimki TEXT,
+                        ulubiony_kolor TEXT,
+                        ulubione_zwierze TEXT,
+                        ulubiona_rzecz TEXT,
+                        hobby TEXT,
+                        jezyk_nativ TEXT,
+                        dodatkowe_jezyki TEXT,
+                        notatki_usera TEXT,
+                        notatki_auto TEXT
+                    )
+                ''')
+
                 # Migration: Add columns if they don't exist
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
@@ -319,6 +337,35 @@ class Database:
 
     def delete_user(self, user_id):
         self.execute_query("DELETE FROM users WHERE user_id = %s", (user_id,))
+
+    # --- USER PROFILES METHODS ---
+    def update_user_profile(self, user_id, **kwargs):
+        if not kwargs:
+            return
+        
+        columns = ['user_id'] + list(kwargs.keys())
+        values = [user_id] + list(kwargs.values())
+        
+        placeholders = ', '.join(['%s'] * len(columns))
+        col_names = ', '.join(columns)
+        
+        updates = ', '.join([f"{k} = EXCLUDED.{k}" for k in kwargs.keys()])
+        
+        query = f"""
+        INSERT INTO user_profiles ({col_names})
+        VALUES ({placeholders})
+        ON CONFLICT (user_id) DO UPDATE SET
+            {updates}
+        """
+        
+        try:
+            self.execute_query(query, tuple(values))
+            print(f"[DB] User profile {user_id} updated successfully.")
+        except Exception as e:
+            print(f"[DB ERR] Failed to update user profile {user_id}: {e}")
+
+    def get_user_profile(self, user_id):
+        return self.fetch_one("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
 
     # --- GUILDS METHODS ---
     def put_guild(self, guild_id, guild_name):
