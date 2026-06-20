@@ -18,13 +18,15 @@ class MentionTriggerCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
-        # Ignore bots (including ourselves) to avoid feedback loops.
         """
         Event listener triggered on every new message in the server.
-        If the bot is mentioned by a real user in a non-blacklisted channel, it extracts
-        the message context and sends an HTTP POST request to the configured n8n webhook URLs.
+        If the bot is mentioned in a non-blacklisted channel, it extracts the message
+        context and sends an HTTP POST request to the configured n8n webhook URLs.
+        Other bots can trigger this (so the bot can talk with other bots); only the
+        bot's own messages are ignored to avoid an immediate self-loop.
         """
-        if message.author.bot:
+        # Ignore only our own messages to avoid a self-loop; other bots are allowed.
+        if self.client.user and message.author.id == self.client.user.id:
             return
 
         # Only guild messages carry channel/guild context for the webhook.
