@@ -57,11 +57,11 @@ class VersionCog(commands.Cog):
     @nextcord.slash_command(
         name="version",
         description="Pokaż aktualną wersję bota (ostatni commit)",
-        #contexts=[nextcord.InteractionContextType.guild],
+        contexts=[nextcord.InteractionContextType.guild],
     )
     async def version(self, interaction: Interaction):
         """
-        Slash command limited to a specific guild that returns the bot's current version
+        Guild-only slash command that returns the bot's current version
         based on the latest git commit hash and date.
         """
         commit_hash, commit_dt = _read_git_info()

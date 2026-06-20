@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fryderyk is a Discord logging bot built on `nextcord` that persists messages, voice sessions, and moderation/system events to an external PostgreSQL database. All timestamps are stored in the `Europe/Warsaw` timezone.
 
+## Before you start: check the current nextcord release
+
+**Always research the latest `nextcord` version on the web before working on anything that touches the library** — slash/application commands, intents, UI (modals/views), event listeners, or the pinned version itself. `nextcord` evolves fast and ships breaking changes between majors, and your training data may be stale. Do this even for "small" changes.
+
+1. Web-search the current `nextcord` version and read its release notes / changelog (PyPI, `github.com/nextcord/nextcord/releases`, `docs.nextcord.dev/en/stable/whats_new.html`) before proposing or writing code.
+2. Cross-check what version this repo actually pins (`requirements.txt`) and what Python the image runs (`Dockerfile`). They must stay compatible — e.g. **nextcord ≥3.0 requires Python ≥3.12**. The current pin is `nextcord==3.2.0` on `python:3.12`. **Keep `nextcord` pinned**; an unpinned requirement makes every rebuild non-deterministic.
+3. Note any API that only exists in a given major before using it — e.g. `nextcord.InteractionContextType` / `contexts=` / `integration_types=` are 3.x-only. Using a newer API while the running version is older makes the whole cog fail to load silently (the `Loader` swallows the exception), so the command never registers.
+4. Never "update nextcord at runtime" (e.g. a slash command that runs `pip install`). Bump the version in `requirements.txt` + the base image and let the image rebuild/redeploy handle it.
+
 ## Commands
 
 Local run (requires a populated `.env`):

@@ -106,15 +106,6 @@ class DataSyncCog(commands.Cog):
             await self._sync_user(after)
 
     @commands.Cog.listener()
-    async def on_guild_join(self, guild: nextcord.Guild):
-        """Perform a full sync for a new guild the bot just joined."""
-        await self._sync_guild(guild)
-        await self._sync_roles(guild)
-        for member in guild.members:
-            await self._sync_user(member)
-            await self._sync_user_roles(member)
-
-    @commands.Cog.listener()
     async def on_guild_role_create(self, role: nextcord.Role):
         """
         Listens for newly created roles in a guild and inserts them into the database.

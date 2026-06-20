@@ -1,3 +1,11 @@
+"""
+Entry point for the Fryderyk Discord bot.
+
+Wires together configuration (`ConfigReader`), the PostgreSQL layer (`Database`),
+and the cog auto-loader (`baseUtils.Loader`), then starts the nextcord client.
+Cogs are discovered from the `cogs/` package by naming convention — see the loader
+and CLAUDE.md for the contract.
+"""
 import nextcord
 from nextcord.ext import commands
 from utilities import baseUtils, Database

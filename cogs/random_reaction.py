@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 import nextcord
 from nextcord.ext import commands
 import random
@@ -101,11 +100,22 @@ GIF_LIST = [
 
 
 class RandomReactionCog(commands.Cog):
+    """
+    Discord Cog that randomly replies to user messages with a GIF from GIF_LIST.
+    The trigger chance is governed by a DynamicProbability instance (held in memory,
+    so its accumulated state resets on bot restart), with a higher chance when the bot
+    is mentioned and a guaranteed trigger on a magic word. Respects the GIF blacklist.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the cog and sets up the dynamic GIF-reaction probability:
+        rising base chances per trigger, a premium-hours multiplier, a daily reset,
+        and a boost for consecutive days without a trigger.
+        """
         self.client = client
         self.config = config
         self.database = database
-        
+
         # Initialization of dynamic probability for GIFs
         # Chances: first 1/50, after successful hit 1/75, then 1/1000 until the end of the day
         # Premium hours: from 16:00 to 22:00 for example, give 3.5x higher chance
@@ -121,6 +131,11 @@ class RandomReactionCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
+        """
+        On every human guild message (outside GIF-blacklisted channels/roles), rolls the
+        dynamic probability and replies with a random GIF on success. The roll chance is
+        doubled when the bot is mentioned, and a reply is forced when the magic word is present.
+        """
         if message.author.bot: return
         if not message.guild: return
         if self.database.is_gif_blacklisted(message.guild.id, message.channel.id): return
