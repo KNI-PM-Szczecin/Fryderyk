@@ -3,6 +3,17 @@ import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption, Embed
 
+
+def _prefill(existing_data, key):
+    """
+    Return a stored profile value to pre-fill a TextInput, or None when it is
+    empty/missing. Discord rejects an empty `value` on a text-input component
+    (HTTP 400, error 50035 "Must be 1 or more in length"), so empty strings must
+    become None (no prefill) rather than "".
+    """
+    value = (existing_data or {}).get(key)
+    return value if value else None
+
 class BasicInfoModal(nextcord.ui.Modal):
     """
     A Discord UI Modal form for collecting and updating a user's basic profile information
@@ -23,7 +34,7 @@ class BasicInfoModal(nextcord.ui.Modal):
             min_length=1,
             max_length=50,
             required=False,
-            default_value=existing_data.get('nick', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'nick')
         )
         self.add_item(self.nick)
         
@@ -31,7 +42,7 @@ class BasicInfoModal(nextcord.ui.Modal):
             label="Płeć",
             max_length=50,
             required=False,
-            default_value=existing_data.get('plec', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'plec')
         )
         self.add_item(self.gender)
         
@@ -39,7 +50,7 @@ class BasicInfoModal(nextcord.ui.Modal):
             label="Zaimki",
             max_length=50,
             required=False,
-            default_value=existing_data.get('zaimki', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'zaimki')
         )
         self.add_item(self.pronouns)
         
@@ -47,7 +58,7 @@ class BasicInfoModal(nextcord.ui.Modal):
             label="Język ojczysty",
             max_length=50,
             required=False,
-            default_value=existing_data.get('jezyk_nativ', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'jezyk_nativ')
         )
         self.add_item(self.native_language)
         
@@ -55,7 +66,7 @@ class BasicInfoModal(nextcord.ui.Modal):
             label="Dodatkowe języki",
             max_length=200,
             required=False,
-            default_value=existing_data.get('dodatkowe_jezyki', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'dodatkowe_jezyki')
         )
         self.add_item(self.additional_languages)
 
@@ -95,7 +106,7 @@ class InterestsModal(nextcord.ui.Modal):
             label="Ulubiony kolor",
             max_length=50,
             required=False,
-            default_value=existing_data.get('ulubiony_kolor', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubiony_kolor')
         )
         self.add_item(self.favorite_color)
         
@@ -103,7 +114,7 @@ class InterestsModal(nextcord.ui.Modal):
             label="Ulubione zwierzę",
             max_length=50,
             required=False,
-            default_value=existing_data.get('ulubione_zwierze', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubione_zwierze')
         )
         self.add_item(self.favorite_animal)
         
@@ -111,7 +122,7 @@ class InterestsModal(nextcord.ui.Modal):
             label="Ulubiona rzecz",
             max_length=50,
             required=False,
-            default_value=existing_data.get('ulubiona_rzecz', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubiona_rzecz')
         )
         self.add_item(self.favorite_thing)
         
@@ -119,7 +130,7 @@ class InterestsModal(nextcord.ui.Modal):
             label="Hobby",
             max_length=200,
             required=False,
-            default_value=existing_data.get('hobby', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'hobby')
         )
         self.add_item(self.hobby)
         
@@ -128,7 +139,7 @@ class InterestsModal(nextcord.ui.Modal):
             style=nextcord.TextInputStyle.paragraph,
             max_length=1000,
             required=False,
-            default_value=existing_data.get('notatki_usera', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'notatki_usera')
         )
         self.add_item(self.user_notes)
 
@@ -168,7 +179,7 @@ class Interests2Modal(nextcord.ui.Modal):
             style=nextcord.TextInputStyle.paragraph,
             max_length=500,
             required=False,
-            default_value=existing_data.get('technologies', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'technologies')
         )
         self.add_item(self.technologies)
 
@@ -176,7 +187,7 @@ class Interests2Modal(nextcord.ui.Modal):
             label="Ulubione gry",
             max_length=200,
             required=False,
-            default_value=existing_data.get('ulubione_gry', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubione_gry')
         )
         self.add_item(self.games)
         
@@ -184,7 +195,7 @@ class Interests2Modal(nextcord.ui.Modal):
             label="Ulubione książki",
             max_length=200,
             required=False,
-            default_value=existing_data.get('ulubione_ksiazki', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubione_ksiazki')
         )
         self.add_item(self.books)
         
@@ -192,7 +203,7 @@ class Interests2Modal(nextcord.ui.Modal):
             label="Ulubione filmy/seriale",
             max_length=200,
             required=False,
-            default_value=existing_data.get('ulubione_filmy', '') if existing_data else ''
+            default_value=_prefill(existing_data, 'ulubione_filmy')
         )
         self.add_item(self.movies)
 
@@ -342,9 +353,3 @@ class UserProfilesCog(commands.Cog):
         embed.set_footer(text=f"Łącznie: {len(user_ids)} osób")
         
         await interaction.send(embed=embed, ephemeral=True)
-
-def setup(client, config, database):
-    """
-    Extension setup function required by nextcord to load the cog automatically.
-    """
-    client.add_cog(UserProfilesCog(client, config, database))
