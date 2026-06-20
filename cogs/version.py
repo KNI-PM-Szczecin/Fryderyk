@@ -76,3 +76,39 @@ class VersionCog(commands.Cog):
         await interaction.response.send_message(
             f"`{commit_hash}` · {formatted_date}", ephemeral=True
         )
+
+    @nextcord.slash_command(
+        name="force_update_nextcord",
+        description="Force nextcord update to 3.2.0 and restart the bot (Admin)",
+        default_member_permissions=nextcord.Permissions(administrator=True),
+    )
+    async def force_update_nextcord(self, interaction: Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            import subprocess
+            import sys
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "nextcord==3.2.0"], 
+                capture_output=True, 
+                text=True
+            )
+            output = (result.stdout + "\n" + result.stderr).strip()
+            
+            # Discord message limits to 2000 chars, so we truncate if it's too long
+            if len(output) > 1700:
+                output = "..." + output[-1700:]
+                
+            if result.returncode == 0:
+                await interaction.followup.send(
+                    f"Successfully updated `nextcord==3.2.0`.\n```text\n{output}\n```\nThe bot will now shut down 💀 so that the system (Docker) can restart it with the new libraries.",
+                    ephemeral=True
+                )
+                # Exit program, docker-compose is set to restart: unless-stopped
+                sys.exit(0)
+            else:
+                await interaction.followup.send(
+                    f"Pip error (code {result.returncode}):\n```text\n{output}\n```",
+                    ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(f"Critical error during update: {e}", ephemeral=True)
