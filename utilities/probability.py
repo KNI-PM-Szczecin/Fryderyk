@@ -4,7 +4,7 @@ import os
 from zoneinfo import ZoneInfo
 
 class DynamicProbability:
-    def __init__(self, base_sequence, premium_hours=None, premium_multiplier=2.0, reset_hour=4):
+    def __init__(self, base_sequence, premium_hours=None, premium_multiplier=2.0, reset_hour=4, daily_boost_multiplier=1.5):
         """
         Class for calculating dynamic probability.
         
@@ -13,17 +13,20 @@ class DynamicProbability:
         :param premium_hours: List of hours (0-23) during which the chance is increased (e.g., [18, 19, 20]).
         :param premium_multiplier: Multiplier for premium hours (e.g., 2.0 = 2x higher chance = chance denominator / 2).
         :param reset_hour: The hour when the counter resets to the beginning (e.g., 4 means 4:00 AM).
+        :param daily_boost_multiplier: Multiplier applied for each consecutive day without a triggered GIF.
         """
         self.base_sequence = base_sequence
         self.premium_hours = premium_hours or []
         self.premium_multiplier = premium_multiplier
         self.reset_hour = reset_hour
+        self.daily_boost_multiplier = daily_boost_multiplier
         
         # Get timezone from env or default to Europe/Warsaw according to bot's convention
         tz_str = os.getenv("TIMEZONE", "Europe/Warsaw")
         self.timezone = ZoneInfo(tz_str)
         
         self.trigger_count = 0
+        self.days_without_trigger = 0
         self.last_reset_date = self._get_current_reset_date()
 
     def _get_current_reset_date(self):
@@ -38,6 +41,15 @@ class DynamicProbability:
         """Checks if the reset hour has passed since the last use and resets the counter if necessary."""
         current_reset_date = self._get_current_reset_date()
         if current_reset_date != self.last_reset_date:
+            days_passed = (current_reset_date - self.last_reset_date).days
+            if days_passed > 0:
+                if self.trigger_count == 0:
+                    self.days_without_trigger += days_passed
+                else:
+                    # If we had a trigger today, but multiple days passed (e.g., bot was offline),
+                    # only the days after the trigger count as 'days without trigger'.
+                    self.days_without_trigger = days_passed - 1
+            
             self.trigger_count = 0
             self.last_reset_date = current_reset_date
 
@@ -54,10 +66,25 @@ class DynamicProbability:
             chance = self.base_sequence[-1]
             
         now = datetime.datetime.now(self.timezone)
+        
+        # Intra-day growth for the first GIF to guarantee at least one trigger per day
+        if self.trigger_count == 0:
+            hours_passed = (now.hour - self.reset_hour) % 24
+            # Smoothly reduce the chance denominator from its base value down to 2 over 23 hours
+            max_reduction = chance - 2
+            if max_reduction > 0:
+                reduction = int(max_reduction * (hours_passed / 23.0))
+                chance -= reduction
+                chance = max(2, chance)
+        
         multiplier = extra_multiplier
         
         if now.hour in self.premium_hours:
             multiplier *= self.premium_multiplier
+            
+        # Apply the boost for consecutive days without a trigger
+        if self.days_without_trigger > 0:
+            multiplier *= (self.daily_boost_multiplier ** self.days_without_trigger)
             
         # We decrease the chance denominator to increase the probability
         # e.g., chance = 50, multiplier = 2.0 -> final_chance = 25 (which means 1/25)

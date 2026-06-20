@@ -108,14 +108,15 @@ class RandomReactionCog(commands.Cog):
         
         # Initialization of dynamic probability for GIFs (Currently disabled)
         # Chances: first 1/50, after successful hit 1/75, then 1/1000 until the end of the day
-        # Premium hours: from 16:00 to 22:00 for example, give 2x higher chance
+        # Premium hours: from 16:00 to 22:00 for example, give 3.5x higher chance
         # Counter resets at 4:00 AM
         #
         # self.reaction_prob = DynamicProbability(
         #     base_sequence=[50, 75, 100, 150, 300, 500],
         #     premium_hours=[16, 17, 18, 19, 20, 21, 22],
         #     premium_multiplier=3.5,
-        #     reset_hour=4
+        #     reset_hour=4,
+        #     daily_boost_multiplier=1.5
         # )
 
     @commands.Cog.listener()
