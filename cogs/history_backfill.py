@@ -12,7 +12,14 @@ PROGRESS_EDIT_INTERVAL_S = 3.0
 
 
 class HistoryBackfillCog(commands.Cog):
+    """
+    Discord Cog providing a tool for administrators to retrospectively scrape 
+    and log all missing historical messages and reactions across the guild's channels.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the HistoryBackfillCog with the bot, config, database, and timezone.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -24,6 +31,11 @@ class HistoryBackfillCog(commands.Cog):
         default_member_permissions=nextcord.Permissions(administrator=True)
     )
     async def backfill_history(self, interaction: Interaction):
+        """
+        Slash command to start the backfill process. Scans all text channels and threads,
+        fetching history from the oldest to newest, and saving missing messages and their
+        reactions to the database. Displays real-time progress.
+        """
         await interaction.response.defer(ephemeral=True)
 
         guild = interaction.guild
@@ -54,6 +66,10 @@ class HistoryBackfillCog(commands.Cog):
         last_edit_at = 0.0
 
         async def push_progress(current_channel_name, per_channel_inserted, per_channel_skipped, force=False):
+            """
+            Helper function to update the progress message in the Discord channel.
+            Limits updates to a specific interval (PROGRESS_EDIT_INTERVAL_S) to avoid rate limits.
+            """
             nonlocal last_edit_at
             now_t = time.monotonic()
             if not force and (now_t - last_edit_at) < PROGRESS_EDIT_INTERVAL_S:

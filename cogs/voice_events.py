@@ -4,7 +4,16 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 class VoiceEventsCog(commands.Cog):
+    """
+    Discord Cog responsible for tracking and logging users' voice channel sessions.
+    Calculates the duration spent in voice channels and records it in the database, 
+    while respecting blacklist rules and ignoring AFK channels.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the VoiceEventsCog with the bot, config, and database connection.
+        Sets up an internal dictionary to track ongoing voice sessions in memory.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -12,6 +21,10 @@ class VoiceEventsCog(commands.Cog):
         self.tz = ZoneInfo("Europe/Warsaw")
 
     def _process_voice_session(self, member, guild_id, session_data):
+        """
+        Calculates the duration of a closed voice session and logs it to the database.
+        Checks against configured blacklists (channels and roles) before inserting.
+        """
         start_time = session_data['start_time']
         channel = session_data['channel']
 
@@ -49,6 +62,11 @@ class VoiceEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: nextcord.Member, before: nextcord.VoiceState, after: nextcord.VoiceState):
+        """
+        Event listener triggered whenever a user's voice state changes (join, leave, move, mute, etc).
+        It manages the lifecycle of a voice session: tracking start times when joining a valid channel,
+        and processing/saving the session when the user leaves, moves to another channel, or goes AFK.
+        """
         user_id = member.id
         guild_id = member.guild.id
         session_key = (user_id, guild_id)

@@ -3,7 +3,14 @@ from nextcord.ext import commands
 from nextcord import Interaction, SlashOption
 
 class LogBlacklistCog(commands.Cog):
+    """
+    Discord Cog responsible for managing blacklists for specific bot features 
+    (like message logging or random GIF reactions) via slash commands.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the LogBlacklistCog with bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -15,6 +22,10 @@ class LogBlacklistCog(commands.Cog):
         default_member_permissions=nextcord.Permissions(administrator=True)
     )
     async def blacklist(self, interaction: Interaction):
+        """
+        Base slash command group for managing feature blacklists.
+        Restricted to server administrators.
+        """
         pass
 
     @blacklist.subcommand(name="add", description="Dodaj kanał lub rolę do czarnej listy")
@@ -25,6 +36,10 @@ class LogBlacklistCog(commands.Cog):
         channel: nextcord.abc.GuildChannel = SlashOption(name="kanal", description="Kanał do zablokowania", required=False),
         role: nextcord.Role = SlashOption(name="rola", description="Rola do zablokowania", required=False)
     ):
+        """
+        Subcommand to add a specific channel or role to the blacklist for a selected feature.
+        Saves the configuration in the database.
+        """
         if not channel and not role:
             await interaction.response.send_message("Musisz wybrać kanał lub rolę.", ephemeral=True)
             return
@@ -54,6 +69,10 @@ class LogBlacklistCog(commands.Cog):
         channel: nextcord.abc.GuildChannel = SlashOption(name="kanal", description="Kanał do usunięcia", required=False),
         role: nextcord.Role = SlashOption(name="rola", description="Rola do usunięcia", required=False)
     ):
+        """
+        Subcommand to remove a specific channel or role from the blacklist for a selected feature.
+        Deletes the configuration from the database.
+        """
         if not channel and not role:
             await interaction.response.send_message("Musisz wybrać kanał lub rolę.", ephemeral=True)
             return
@@ -75,6 +94,9 @@ class LogBlacklistCog(commands.Cog):
         interaction: Interaction,
         funkcja: str = SlashOption(name="funkcja", description="Funkcja dla której sprawdzamy listę", choices={"Logowanie wiadomości": "log", "Wysyłanie GIF-ów": "gif_react"}, required=True)
     ):
+        """
+        Subcommand that lists all channels and roles currently blacklisted for a selected feature.
+        """
         guild_id = interaction.guild.id
         db_get = self.database.get_blacklist if funkcja == "log" else self.database.get_gif_blacklist
         items = db_get(guild_id)

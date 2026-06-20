@@ -4,7 +4,16 @@ from zoneinfo import ZoneInfo
 from utilities.baseUtils import DiscordUtils
 
 class MessageEventsCog(commands.Cog):
+    """
+    Discord Cog responsible for tracking and logging chat messages into the database.
+    It automatically records both new messages and message edits, while respecting 
+    configured blacklists for specific channels or roles.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the MessageEventsCog with the bot, config, and database connection.
+        Sets the default timezone to Europe/Warsaw for timestamps.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -14,6 +23,11 @@ class MessageEventsCog(commands.Cog):
     async def on_message(self, message: nextcord.Message):
         # Skip ephemeral messages authored by bots (e.g. our own backfill
         # progress updates) — they're not real chat content.
+        """
+        Event listener triggered on every new message in the server.
+        Parses mentions, applies blacklist rules, assigns the local timezone, 
+        and inserts the message record into the database.
+        """
         if message.author.bot and message.flags.ephemeral:
             return
 
@@ -66,6 +80,11 @@ class MessageEventsCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message_edit(self, before: nextcord.Message, after: nextcord.Message):
         # Skip ephemeral messages authored by bots (mirrors the on_message guard).
+        """
+        Event listener triggered when a message is edited.
+        Logs the edited version as a distinct new entry in the database (with is_edited=True) 
+        if the actual text content was changed, while still respecting blacklist rules.
+        """
         if after.author.bot and after.flags.ephemeral:
             return
 

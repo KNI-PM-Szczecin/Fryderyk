@@ -4,13 +4,26 @@ import importlib
 from dotenv import load_dotenv
 
 class ConfigReader:
+    """
+    Reads and provides configuration variables (like tokens, database credentials, 
+    and n8n webhook URLs) loaded from the environment or .env file.
+    """
     def __init__(self):
+        """
+        Initializes the configuration reader by loading environment variables via python-dotenv.
+        """
         load_dotenv()
 
     def get_bot_token(self):
+        """
+        Retrieves the Discord bot token from the BOT_TOKEN environment variable.
+        """
         return os.getenv("BOT_TOKEN", "")
 
     def get_db_config(self):
+        """
+        Constructs and returns a dictionary with PostgreSQL connection parameters.
+        """
         return {
             "host": os.getenv("POSTGRES_HOST", "localhost"),
             "port": int(os.getenv("POSTGRES_PORT", 5432)),
@@ -20,9 +33,15 @@ class ConfigReader:
         }
 
     def get_timezone(self):
+        """
+        Retrieves the default timezone for the bot (defaults to Europe/Warsaw).
+        """
         return os.getenv("TIMEZONE", "Europe/Warsaw")
 
     def get_n8n_webhook_url(self, env: str) -> str:
+        """
+        Retrieves the primary n8n webhook URL, dynamically choosing between production and test environments.
+        """
         if env == "production":
             return os.getenv(
                 "N8N_WEBHOOK_PRODUCTION_URL",
@@ -34,6 +53,9 @@ class ConfigReader:
         )
 
     def get_n8n_profile_webhook_url(self, env: str) -> str:
+        """
+        Retrieves the n8n webhook URL specifically for the profile synchronization feature.
+        """
         if env == "production":
             return os.getenv(
                 "N8N_PROFILE_WEBHOOK_PRODUCTION_URL",
@@ -45,6 +67,9 @@ class ConfigReader:
         )
 
     def get_n8n_speak_webhook_url(self, env: str) -> str:
+        """
+        Retrieves the n8n webhook URL for the 'speak up' (wypowiedz-sie) feature.
+        """
         if env == "production":
             return os.getenv(
                 "N8N_SPEAK_WEBHOOK_PRODUCTION_URL",
@@ -56,6 +81,9 @@ class ConfigReader:
         )
 
     def get_n8n_mention_webhook_url(self, env: str) -> str:
+        """
+        Retrieves the n8n webhook URL used when the bot is directly mentioned.
+        """
         if env == "production":
             return os.getenv(
                 "N8N_MENTION_WEBHOOK_PRODUCTION_URL",
@@ -67,7 +95,15 @@ class ConfigReader:
         )
 
 class Loader:
+    """
+    Dynamically loads Discord cog extensions from a specified folder based on their filenames 
+    and matching class names, passing necessary dependencies (like database and config) to them.
+    """
     def __init__(self, payload: dict[str, any], folder="cogs"):
+        """
+        Initializes the Loader and immediately attempts to load all valid python files 
+        in the target folder as Discord cogs into the provided client.
+        """
         self.payload = payload
         self.client = payload.get("client")
         self.folder = folder
@@ -117,6 +153,9 @@ class Loader:
                     print(f"\n > Failed to load {module_name} ({class_name}): {e}\n")
 
 class DiscordUtils:
+    """
+    Contains utility functions specifically related to Discord objects and message processing.
+    """
     @staticmethod
     def parse_mentions(message):
         """

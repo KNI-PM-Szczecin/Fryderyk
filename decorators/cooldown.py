@@ -8,11 +8,19 @@ class CogSharedCooldown:
     per timeframe (per in seconds).
     """
     def __init__(self, rate: int, per: float):
+        """
+        Initializes the cooldown manager with the allowed number of uses (rate) 
+        and the time window in seconds (per).
+        """
         self.rate = rate
         self.per = per
         self._buckets = {}
 
     def get_retry_after(self, key: int):
+        """
+        Checks if the action is currently on cooldown for the given key (e.g. user ID or guild ID).
+        Returns the number of seconds remaining until the cooldown expires, or None if allowed.
+        """
         now = time.time()
         if key not in self._buckets:
             self._buckets[key] = [now]
@@ -48,6 +56,10 @@ def cog_cooldown(
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, interaction: nextcord.Interaction, *args, **kwargs):
+            """
+            The inner wrapper function that executes the cooldown logic before 
+            running the actual interaction command.
+            """
             # Determine which cooldown manager to use
             if rate is not None and per is not None:
                 if not hasattr(self, "_dynamic_cooldown_managers"):

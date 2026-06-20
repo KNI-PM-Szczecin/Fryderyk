@@ -6,7 +6,15 @@ from decorators import cog_cooldown
 
 
 class SpeakUpCog(commands.Cog):
+    """
+    Discord Cog that provides the '/zabierz_glos' slash command. 
+    It allows users to request the bot to generate a response or opinion 
+    based on the current channel's discussion context via an external n8n webhook.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the SpeakUpCog with the bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
 
@@ -27,6 +35,11 @@ class SpeakUpCog(commands.Cog):
             choices={"Test": "test", "Production": "production"},
         ),
     ):
+        """
+        Slash command limited to a specific guild that triggers the bot to "speak up".
+        Sends a payload with the channel and user context to an n8n webhook, 
+        and is rate-limited by the cog_cooldown decorator.
+        """
         await interaction.response.defer(ephemeral=True)
 
         channel = interaction.channel

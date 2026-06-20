@@ -113,7 +113,7 @@ class RandomReactionCog(commands.Cog):
         
         self.reaction_prob = DynamicProbability(
             base_sequence=[50, 75, 100, 150, 300, 500],
-            premium_hours=[16, 17, 18, 19, 20, 21, 22],
+            premium_hours=[19, 20, 21, 22, 23],
             premium_multiplier=3.5,
             reset_hour=4,
             daily_boost_multiplier=1.5
@@ -131,7 +131,6 @@ class RandomReactionCog(commands.Cog):
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()
         
-        # --- NEW DYNAMIC PROBABILITY LOGIC ---
         extra_multiplier = 2.0 if is_mentioned else 1.0
         if has_magic_word or self.reaction_prob.should_trigger(extra_multiplier=extra_multiplier):
             gif_url = random.choice(GIF_LIST)

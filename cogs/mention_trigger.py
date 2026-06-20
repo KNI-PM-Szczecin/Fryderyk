@@ -9,6 +9,9 @@ class MentionTriggerCog(commands.Cog):
     """Fires an n8n webhook whenever the bot is mentioned in a guild message."""
 
     def __init__(self, client, config, database):
+        """
+        Initializes the MentionTriggerCog with the bot, config, and database connection.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -16,6 +19,11 @@ class MentionTriggerCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
         # Ignore bots (including ourselves) to avoid feedback loops.
+        """
+        Event listener triggered on every new message in the server.
+        If the bot is mentioned by a real user in a non-blacklisted channel, it extracts
+        the message context and sends an HTTP POST request to the configured n8n webhook URLs.
+        """
         if message.author.bot:
             return
 

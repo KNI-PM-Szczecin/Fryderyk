@@ -2,7 +2,15 @@ import nextcord
 from nextcord.ext import commands
 
 class DataSyncCog(commands.Cog):
+    """
+    Discord Cog responsible for synchronizing bot state (guilds, members, roles) 
+    with the local database. Runs an initial catch-up on startup and listens to 
+    various Discord events to maintain data integrity in real-time.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the DataSyncCog with bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -53,6 +61,9 @@ class DataSyncCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         # Initial catch-up on startup
+        """
+        Triggered when the bot connects to Discord. Initiates the global data catch-up process.
+        """
         await self.catch_up()
 
     # --- Runtime Data Integrity Listeners ---
@@ -105,14 +116,23 @@ class DataSyncCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: nextcord.Role):
+        """
+        Listens for newly created roles in a guild and inserts them into the database.
+        """
         self.database.put_role(role.id, role.guild.id, role.name)
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: nextcord.Role):
+        """
+        Listens for role deletions in a guild and removes them from the database.
+        """
         self.database.delete_role(role.id)
 
     @commands.Cog.listener()
     async def on_guild_role_update(self, before: nextcord.Role, after: nextcord.Role):
+        """
+        Listens for role updates in a guild and syncs changes (like name edits) to the database.
+        """
         if before.name != after.name:
             self.database.put_role(after.id, after.guild.id, after.name)
 

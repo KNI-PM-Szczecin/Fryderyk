@@ -9,6 +9,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _read_git_info():
+    """
+    Reads the local `.git` directory to extract the latest commit hash and its timestamp.
+    Used to dynamically determine the bot's current running version without needing env vars.
+    Returns a tuple of (short_commit_hash, commit_datetime).
+    """
     git_dir = os.path.join(REPO_ROOT, ".git")
     try:
         with open(os.path.join(git_dir, "HEAD")) as f:
@@ -40,7 +45,13 @@ def _read_git_info():
 
 
 class VersionCog(commands.Cog):
+    """
+    Discord Cog that provides the '/version' slash command to check the bot's current build version.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the VersionCog with the bot instance.
+        """
         self.client = client
 
     @nextcord.slash_command(
@@ -50,6 +61,10 @@ class VersionCog(commands.Cog):
         guild_ids=[1357420845970100335],
     )
     async def version(self, interaction: Interaction):
+        """
+        Slash command limited to a specific guild that returns the bot's current version
+        based on the latest git commit hash and date.
+        """
         commit_hash, commit_dt = _read_git_info()
 
         if commit_hash is None:

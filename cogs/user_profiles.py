@@ -4,7 +4,14 @@ from nextcord.ext import commands
 from nextcord import Interaction, SlashOption, Embed
 
 class BasicInfoModal(nextcord.ui.Modal):
+    """
+    A Discord UI Modal form for collecting and updating a user's basic profile information
+    such as nickname, gender, pronouns, and languages.
+    """
     def __init__(self, database, existing_data):
+        """
+        Initializes the basic info modal, pre-filling fields with existing data from the database.
+        """
         super().__init__(
             title="Wizytówka - Podstawowe",
             custom_id="user_profile_basic_modal",
@@ -53,6 +60,10 @@ class BasicInfoModal(nextcord.ui.Modal):
         self.add_item(self.additional_languages)
 
     async def callback(self, interaction: Interaction):
+        """
+        Callback executed when the user submits the basic info modal.
+        Saves the form data to the database and sends a confirmation message.
+        """
         data_to_update = {
             'nick': self.nick.value,
             'plec': self.gender.value,
@@ -66,7 +77,14 @@ class BasicInfoModal(nextcord.ui.Modal):
 
 
 class InterestsModal(nextcord.ui.Modal):
+    """
+    A Discord UI Modal form for collecting and updating a user's general interests
+    such as favorite color, animal, thing, hobbies, and personal notes.
+    """
     def __init__(self, database, existing_data):
+        """
+        Initializes the interests modal, pre-filling fields with existing data from the database.
+        """
         super().__init__(
             title="Wizytówka - Zainteresowania",
             custom_id="user_profile_interests_modal",
@@ -115,6 +133,10 @@ class InterestsModal(nextcord.ui.Modal):
         self.add_item(self.user_notes)
 
     async def callback(self, interaction: Interaction):
+        """
+        Callback executed when the user submits the interests modal.
+        Saves the form data to the database and sends a confirmation message.
+        """
         data_to_update = {
             'ulubiony_kolor': self.favorite_color.value,
             'ulubione_zwierze': self.favorite_animal.value,
@@ -127,7 +149,14 @@ class InterestsModal(nextcord.ui.Modal):
 
 
 class Interests2Modal(nextcord.ui.Modal):
+    """
+    A Discord UI Modal form for collecting and updating a user's specific media interests
+    such as favorite games, books, movies, and known technologies.
+    """
     def __init__(self, database, existing_data):
+        """
+        Initializes the second interests modal, pre-filling fields with existing data from the database.
+        """
         super().__init__(
             title="Wizytówka - Zainteresowania 2",
             custom_id="user_profile_interests2_modal",
@@ -168,6 +197,10 @@ class Interests2Modal(nextcord.ui.Modal):
         self.add_item(self.movies)
 
     async def callback(self, interaction: Interaction):
+        """
+        Callback executed when the user submits the second interests modal.
+        Saves the form data to the database and sends a confirmation message.
+        """
         data_to_update = {
             'technologies': self.technologies.value,
             'ulubione_gry': self.games.value,
@@ -179,7 +212,15 @@ class Interests2Modal(nextcord.ui.Modal):
 
 
 class UserProfilesCog(commands.Cog):
+    """
+    Discord Cog responsible for managing the user profiles (wizytówka) system.
+    Provides slash commands to display profiles and launch interactive Modals 
+    for users to edit their own profile data.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the UserProfilesCog with the bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
         self.database = database
@@ -248,6 +289,10 @@ class UserProfilesCog(commands.Cog):
             return await interaction.send(embed=embed)
             
         def add_field(name, key):
+            """
+            Helper function to safely add a field to the embed only if the value exists 
+            and is not entirely whitespace.
+            """
             val = data.get(key)
             if val and str(val).strip():
                 embed.add_field(name=name, value=str(val), inline=True)
@@ -297,4 +342,7 @@ class UserProfilesCog(commands.Cog):
         await interaction.send(embed=embed, ephemeral=True)
 
 def setup(client, config, database):
+    """
+    Extension setup function required by nextcord to load the cog automatically.
+    """
     client.add_cog(UserProfilesCog(client, config, database))

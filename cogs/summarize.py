@@ -6,7 +6,15 @@ from decorators import cog_cooldown
 
 
 class SummarizeCog(commands.Cog):
+    """
+    Discord Cog that provides the '/summarize' slash command. 
+    It allows users to trigger a channel summary generation by sending a payload 
+    to an external n8n webhook, which handles the actual summarization logic.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the SummarizeCog with the bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
 
@@ -32,6 +40,11 @@ class SummarizeCog(commands.Cog):
             choices={"Test": "test", "Production": "production"},
         ),
     ):
+        """
+        Slash command limited to a specific guild that triggers a channel summary.
+        Sends a payload containing the target channel and the requesting user to an n8n webhook.
+        Protected by a rate limit (cog_cooldown).
+        """
         await interaction.response.defer(ephemeral=True)
 
         source_channel = interaction.channel

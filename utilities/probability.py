@@ -4,6 +4,11 @@ import os
 from zoneinfo import ZoneInfo
 
 class DynamicProbability:
+    """
+    Manages a dynamically scaling probability system designed to guarantee events 
+    (like random GIF reactions) over time. It increases the chance based on time elapsed 
+    without an event, specific 'premium' hours, and custom consecutive day multipliers.
+    """
     def __init__(self, base_sequence, premium_hours=None, premium_multiplier=2.0, reset_hour=4, daily_boost_multiplier=1.5):
         """
         Class for calculating dynamic probability.

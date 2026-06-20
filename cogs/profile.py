@@ -6,7 +6,15 @@ from decorators import cog_cooldown
 
 
 class ProfileCog(commands.Cog):
+    """
+    Discord Cog that provides the '/profile' slash command. 
+    It enables users to request a generated profile or summary for a specific server member 
+    by sending the relevant user IDs to an external n8n webhook.
+    """
     def __init__(self, client, config, database):
+        """
+        Initializes the ProfileCog with the bot instance, config, and database connection.
+        """
         self.client = client
         self.config = config
 
@@ -32,6 +40,11 @@ class ProfileCog(commands.Cog):
             choices={"Test": "test", "Production": "production"},
         ),
     ):
+        """
+        Slash command limited to a specific guild that triggers user profile generation.
+        Sends a payload containing the target user, the requesting user, and the channel 
+        context to an n8n webhook. Protected by a rate limit (cog_cooldown).
+        """
         await interaction.response.defer(ephemeral=True)
 
         source_channel = interaction.channel

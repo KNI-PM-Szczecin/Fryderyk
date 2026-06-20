@@ -8,6 +8,9 @@ class UserEventsCog(commands.Cog):
     data validation (state) from event handling.
     """
     def __init__(self, client, config, database):
+        """
+        Initializes the UserEventsCog with the bot, config, and database connection.
+        """
         self.client = client
         self.config = config
         self.database = database
