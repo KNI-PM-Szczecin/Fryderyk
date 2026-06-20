@@ -42,26 +42,12 @@ def cog_cooldown(
     If rate and per are specified, it creates and uses a command-specific cooldown manager.
     Otherwise, it checks for a `cooldown_manager` attribute on the Cog instance.
     
-    Bypasses cooldown for configured super users.
-    
     If per_guild is True and the command is invoked in a guild, the cooldown is shared 
     across all users in that guild. Otherwise, the cooldown is user-specific.
     """
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, interaction: nextcord.Interaction, *args, **kwargs):
-            # Check super users from config
-            super_users = []
-            if hasattr(self, "config") and hasattr(self.config, "get_super_users"):
-                raw_super_users = self.config.get_super_users()
-                if isinstance(raw_super_users, (list, tuple)):
-                    super_users = [int(u) for u in raw_super_users]
-                elif isinstance(raw_super_users, str):
-                    super_users = [int(u.strip()) for u in raw_super_users.split(",") if u.strip().isdigit()]
-
-            if interaction.user and interaction.user.id in super_users:
-                return await func(self, interaction, *args, **kwargs)
-
             # Determine which cooldown manager to use
             if rate is not None and per is not None:
                 if not hasattr(self, "_dynamic_cooldown_managers"):
