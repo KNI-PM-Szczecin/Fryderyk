@@ -1,6 +1,8 @@
+# pyrefly: ignore [missing-import]
 import nextcord
 from nextcord.ext import commands
 import random
+from utilities.probability import DynamicProbability
 
 GIF_LIST = [
     "https://tenor.com/view/freddy-fazbear-rock-eyebrow-fnaf-gif-6454127445528826902",
@@ -97,11 +99,24 @@ GIF_LIST = [
     "https://tenor.com/view/ashley-graves-the-coffin-of-andy-and-leyley-tcoal-gif-10201382978478232086"
 ]
 
+
 class RandomReactionCog(commands.Cog):
     def __init__(self, client, config, database):
         self.client = client
         self.config = config
         self.database = database
+        
+        # Initialization of dynamic probability for GIFs (Currently disabled)
+        # Chances: first 1/50, after successful hit 1/75, then 1/1000 until the end of the day
+        # Premium hours: from 16:00 to 22:00 for example, give 2x higher chance
+        # Counter resets at 4:00 AM
+        #
+        # self.reaction_prob = DynamicProbability(
+        #     base_sequence=[50, 75, 100, 150, 300, 500],
+        #     premium_hours=[16, 17, 18, 19, 20, 21, 22],
+        #     premium_multiplier=3.5,
+        #     reset_hour=4
+        # )
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
@@ -114,6 +129,15 @@ class RandomReactionCog(commands.Cog):
 
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()
+        
+        # --- NEW DYNAMIC PROBABILITY LOGIC (Currently disabled) ---
+        # extra_multiplier = 2.0 if is_mentioned else 1.0
+        # if has_magic_word or self.reaction_prob.should_trigger(extra_multiplier=extra_multiplier):
+        #     gif_url = random.choice(GIF_LIST)
+        #     await message.reply(gif_url)
+        # ----------------------------------------------------------
+
+        # --- OLD STATIC PROBABILITY LOGIC (Currently active) ---
         chance = 50 if is_mentioned else 100
 
         if has_magic_word or random.randint(1, chance) == 1:
