@@ -277,7 +277,24 @@ class UserProfilesCog(commands.Cog):
         if val_notes and str(val_notes).strip():
             embed.add_field(name="Notatki", value=str(val_notes), inline=False)
             
-        await interaction.send(embed=embed)
+    @nextcord.slash_command(name="wizytowki_lista", description="Pokaż kto ma uzupełnioną wizytówkę", default_member_permissions=nextcord.Permissions(administrator=True))
+    async def list_filled_profiles(self, interaction: Interaction):
+        """Show a list of users who have a profile in the database."""
+        rows = self.database.get_all_user_profiles()
+        if not rows:
+            return await interaction.send("Nikt jeszcze nie uzupełnił wizytówki.", ephemeral=True)
+            
+        user_ids = [row[0] for row in rows]
+        mentions = [f"<@{uid}>" for uid in user_ids]
+        
+        description = "\n".join(mentions)
+        if len(description) > 4000:
+            description = description[:4000] + "\n...i więcej."
+            
+        embed = Embed(title="Uzupełnione wizytówki", description=description, color=nextcord.Color.green())
+        embed.set_footer(text=f"Łącznie: {len(user_ids)} osób")
+        
+        await interaction.send(embed=embed, ephemeral=True)
 
 def setup(client, config, database):
     client.add_cog(UserProfilesCog(client, config, database))

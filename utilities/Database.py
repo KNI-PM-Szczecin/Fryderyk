@@ -375,6 +375,9 @@ class Database:
     def get_user_profile(self, user_id):
         return self.fetch_one("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
 
+    def get_all_user_profiles(self):
+        return self.fetch_all("SELECT user_id FROM user_profiles")
+
     # --- GUILDS METHODS ---
     def put_guild(self, guild_id, guild_name):
         query = """
