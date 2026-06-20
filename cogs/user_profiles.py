@@ -1,3 +1,4 @@
+import re
 import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption, Embed
@@ -230,7 +231,15 @@ class UserProfilesCog(commands.Cog):
         row = self.database.get_user_profile(target.id)
         data = self._row_to_dict(row)
         
-        embed = Embed(title=f"Wizytówka: {target.display_name}", color=nextcord.Color.purple())
+        embed_color = nextcord.Color.purple()
+        if data and data.get("ulubiony_kolor"):
+            color_str = str(data["ulubiony_kolor"]).strip()
+            # Match formats like #ff00ff, ff00ff, 0xff00ff anywhere in the text
+            match = re.search(r'(?:^|[^a-zA-Z0-9_])(?:#|0x)?([0-9a-fA-F]{6})(?=[^a-zA-Z0-9_]|$)', color_str)
+            if match:
+                embed_color = nextcord.Color(int(match.group(1), 16))
+                
+        embed = Embed(title=f"Wizytówka: {target.display_name}", color=embed_color)
         if target.avatar:
             embed.set_thumbnail(url=target.avatar.url)
             
