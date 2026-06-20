@@ -2,11 +2,11 @@ import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption, Embed
 
-class PodstawoweModal(nextcord.ui.Modal):
+class BasicInfoModal(nextcord.ui.Modal):
     def __init__(self, database, existing_data):
         super().__init__(
             title="Wizytówka - Podstawowe",
-            custom_id="wizytowka_podstawowe_modal",
+            custom_id="user_profile_basic_modal",
         )
         self.database = database
         
@@ -19,81 +19,82 @@ class PodstawoweModal(nextcord.ui.Modal):
         )
         self.add_item(self.nick)
         
-        self.plec = nextcord.ui.TextInput(
+        self.gender = nextcord.ui.TextInput(
             label="Płeć",
             max_length=50,
             required=False,
             default_value=existing_data.get('plec', '') if existing_data else ''
         )
-        self.add_item(self.plec)
+        self.add_item(self.gender)
         
-        self.zaimki = nextcord.ui.TextInput(
+        self.pronouns = nextcord.ui.TextInput(
             label="Zaimki",
             max_length=50,
             required=False,
             default_value=existing_data.get('zaimki', '') if existing_data else ''
         )
-        self.add_item(self.zaimki)
+        self.add_item(self.pronouns)
         
-        self.jezyk_nativ = nextcord.ui.TextInput(
+        self.native_language = nextcord.ui.TextInput(
             label="Język ojczysty",
             max_length=50,
             required=False,
             default_value=existing_data.get('jezyk_nativ', '') if existing_data else ''
         )
-        self.add_item(self.jezyk_nativ)
+        self.add_item(self.native_language)
         
-        self.dodatkowe_jezyki = nextcord.ui.TextInput(
+        self.additional_languages = nextcord.ui.TextInput(
             label="Dodatkowe języki",
             max_length=200,
             required=False,
             default_value=existing_data.get('dodatkowe_jezyki', '') if existing_data else ''
         )
-        self.add_item(self.dodatkowe_jezyki)
+        self.add_item(self.additional_languages)
 
     async def callback(self, interaction: Interaction):
         data_to_update = {
             'nick': self.nick.value,
-            'plec': self.plec.value,
-            'zaimki': self.zaimki.value,
-            'jezyk_nativ': self.jezyk_nativ.value,
-            'dodatkowe_jezyki': self.dodatkowe_jezyki.value
+            'plec': self.gender.value,
+            'zaimki': self.pronouns.value,
+            'jezyk_nativ': self.native_language.value,
+            'dodatkowe_jezyki': self.additional_languages.value
         }
-        # In Nextcord TextInput, empty string means not provided. 
+        # In Nextcord TextInput, an empty string means the field was not provided.
         self.database.update_user_profile(interaction.user.id, **data_to_update)
         await interaction.send("Zaktualizowano podstawowe informacje w wizytówce!", ephemeral=True)
 
-class ZainteresowaniaModal(nextcord.ui.Modal):
+
+class InterestsModal(nextcord.ui.Modal):
     def __init__(self, database, existing_data):
         super().__init__(
             title="Wizytówka - Zainteresowania",
-            custom_id="wizytowka_zainteresowania_modal",
+            custom_id="user_profile_interests_modal",
         )
         self.database = database
         
-        self.ulubiony_kolor = nextcord.ui.TextInput(
+        self.favorite_color = nextcord.ui.TextInput(
             label="Ulubiony kolor",
             max_length=50,
             required=False,
             default_value=existing_data.get('ulubiony_kolor', '') if existing_data else ''
         )
-        self.add_item(self.ulubiony_kolor)
+        self.add_item(self.favorite_color)
         
-        self.ulubione_zwierze = nextcord.ui.TextInput(
+        self.favorite_animal = nextcord.ui.TextInput(
             label="Ulubione zwierzę",
             max_length=50,
             required=False,
             default_value=existing_data.get('ulubione_zwierze', '') if existing_data else ''
         )
-        self.add_item(self.ulubione_zwierze)
+        self.add_item(self.favorite_animal)
         
-        self.ulubiona_rzecz = nextcord.ui.TextInput(
+        self.favorite_thing = nextcord.ui.TextInput(
             label="Ulubiona rzecz",
             max_length=50,
             required=False,
             default_value=existing_data.get('ulubiona_rzecz', '') if existing_data else ''
         )
-        self.add_item(self.ulubiona_rzecz)
+        self.add_item(self.favorite_thing)
         
         self.hobby = nextcord.ui.TextInput(
             label="Hobby",
@@ -103,25 +104,50 @@ class ZainteresowaniaModal(nextcord.ui.Modal):
         )
         self.add_item(self.hobby)
         
-        self.notatki_usera = nextcord.ui.TextInput(
+        self.user_notes = nextcord.ui.TextInput(
             label="Notatki",
             style=nextcord.TextInputStyle.paragraph,
             max_length=1000,
             required=False,
             default_value=existing_data.get('notatki_usera', '') if existing_data else ''
         )
-        self.add_item(self.notatki_usera)
+        self.add_item(self.user_notes)
 
     async def callback(self, interaction: Interaction):
         data_to_update = {
-            'ulubiony_kolor': self.ulubiony_kolor.value,
-            'ulubione_zwierze': self.ulubione_zwierze.value,
-            'ulubiona_rzecz': self.ulubiona_rzecz.value,
+            'ulubiony_kolor': self.favorite_color.value,
+            'ulubione_zwierze': self.favorite_animal.value,
+            'ulubiona_rzecz': self.favorite_thing.value,
             'hobby': self.hobby.value,
-            'notatki_usera': self.notatki_usera.value
+            'notatki_usera': self.user_notes.value
         }
         self.database.update_user_profile(interaction.user.id, **data_to_update)
         await interaction.send("Zaktualizowano zainteresowania w wizytówce!", ephemeral=True)
+
+
+class SkillsModal(nextcord.ui.Modal):
+    def __init__(self, database, existing_data):
+        super().__init__(
+            title="Wizytówka - Umiejętności",
+            custom_id="user_profile_skills_modal",
+        )
+        self.database = database
+        
+        self.technologies = nextcord.ui.TextInput(
+            label="Technologie (np. Python, C++)",
+            style=nextcord.TextInputStyle.paragraph,
+            max_length=500,
+            required=False,
+            default_value=existing_data.get('technologies', '') if existing_data else ''
+        )
+        self.add_item(self.technologies)
+
+    async def callback(self, interaction: Interaction):
+        data_to_update = {
+            'technologies': self.technologies.value
+        }
+        self.database.update_user_profile(interaction.user.id, **data_to_update)
+        await interaction.send("Zaktualizowano umiejętności w wizytówce!", ephemeral=True)
 
 
 class UserProfilesCog(commands.Cog):
@@ -131,34 +157,48 @@ class UserProfilesCog(commands.Cog):
         self.database = database
         
     def _row_to_dict(self, row):
+        """Convert a database row into a dictionary for easier access."""
         if not row:
             return {}
         columns = [
             'user_id', 'nick', 'plec', 'zaimki', 'ulubiony_kolor', 'ulubione_zwierze', 
-            'ulubiona_rzecz', 'hobby', 'jezyk_nativ', 'dodatkowe_jezyki', 'notatki_usera', 'notatki_auto'
+            'ulubiona_rzecz', 'hobby', 'jezyk_nativ', 'dodatkowe_jezyki', 'notatki_usera', 'notatki_auto',
+            'technologies'
         ]
         return dict(zip(columns, row))
 
     @nextcord.slash_command(name="wizytowka", description="Zarządzanie wizytówką użytkownika")
-    async def wizytowka(self, interaction: Interaction):
+    async def user_profile(self, interaction: Interaction):
+        """Base command for the user profile (wizytówka) feature."""
         pass
 
-    @wizytowka.subcommand(name="edytuj_podstawowe", description="Edytuj podstawowe informacje (Nick, Płeć, Zaimki, Języki)")
-    async def edytuj_podstawowe(self, interaction: Interaction):
+    @user_profile.subcommand(name="edytuj_podstawowe", description="Edytuj podstawowe informacje (Nick, Płeć, Zaimki, Języki)")
+    async def edit_basic_info(self, interaction: Interaction):
+        """Open a modal to edit basic profile information."""
         row = self.database.get_user_profile(interaction.user.id)
         existing_data = self._row_to_dict(row)
-        modal = PodstawoweModal(self.database, existing_data)
+        modal = BasicInfoModal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
-    @wizytowka.subcommand(name="edytuj_zainteresowania", description="Edytuj zainteresowania (Kolor, Zwierzę, Rzecz, Hobby, Notatki)")
-    async def edytuj_zainteresowania(self, interaction: Interaction):
+    @user_profile.subcommand(name="edytuj_zainteresowania", description="Edytuj zainteresowania (Kolor, Zwierzę, Rzecz, Hobby, Notatki)")
+    async def edit_interests(self, interaction: Interaction):
+        """Open a modal to edit profile interests."""
         row = self.database.get_user_profile(interaction.user.id)
         existing_data = self._row_to_dict(row)
-        modal = ZainteresowaniaModal(self.database, existing_data)
+        modal = InterestsModal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
-    @wizytowka.subcommand(name="pokaz", description="Pokaż wizytówkę swoją lub innej osoby")
-    async def pokaz(self, interaction: Interaction, member: nextcord.Member = SlashOption(name="uzytkownik", description="Osoba, której wizytówkę chcesz sprawdzić", required=False)):
+    @user_profile.subcommand(name="edytuj_umiejetnosci", description="Edytuj umiejętności techniczne (Technologie / Języki programowania)")
+    async def edit_skills(self, interaction: Interaction):
+        """Open a modal to edit technical skills (technologies)."""
+        row = self.database.get_user_profile(interaction.user.id)
+        existing_data = self._row_to_dict(row)
+        modal = SkillsModal(self.database, existing_data)
+        await interaction.response.send_modal(modal)
+
+    @user_profile.subcommand(name="pokaz", description="Pokaż wizytówkę swoją lub innej osoby")
+    async def show_profile(self, interaction: Interaction, member: nextcord.Member = SlashOption(name="uzytkownik", description="Osoba, której wizytówkę chcesz sprawdzić", required=False)):
+        """Show the specified user's profile, or the caller's profile if no user is specified."""
         target = member or interaction.user
         row = self.database.get_user_profile(target.id)
         data = self._row_to_dict(row)
@@ -176,7 +216,7 @@ class UserProfilesCog(commands.Cog):
             if val and str(val).strip():
                 embed.add_field(name=name, value=str(val), inline=True)
                 
-        # Basic
+        # Basic Information
         add_field("Nick", "nick")
         add_field("Płeć", "plec")
         add_field("Zaimki", "zaimki")
@@ -189,7 +229,10 @@ class UserProfilesCog(commands.Cog):
         add_field("Ulubiona rzecz", "ulubiona_rzecz")
         add_field("Hobby", "hobby")
         
-        # Notes
+        # Skills
+        add_field("Technologie (np. Python)", "technologies")
+        
+        # User Notes
         val_notes = data.get("notatki_usera")
         if val_notes and str(val_notes).strip():
             embed.add_field(name="Notatki", value=str(val_notes), inline=False)

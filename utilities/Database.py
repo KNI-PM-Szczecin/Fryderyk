@@ -200,11 +200,13 @@ class Database:
                         jezyk_nativ TEXT,
                         dodatkowe_jezyki TEXT,
                         notatki_usera TEXT,
-                        notatki_auto TEXT
+                        notatki_auto TEXT,
+                        technologies TEXT
                     )
                 ''')
 
                 # Migration: Add columns if they don't exist
+                cursor.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS technologies TEXT")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
