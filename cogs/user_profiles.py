@@ -125,11 +125,11 @@ class InterestsModal(nextcord.ui.Modal):
         await interaction.send("Zaktualizowano zainteresowania w wizytówce!", ephemeral=True)
 
 
-class SkillsModal(nextcord.ui.Modal):
+class Interests2Modal(nextcord.ui.Modal):
     def __init__(self, database, existing_data):
         super().__init__(
-            title="Wizytówka - Umiejętności",
-            custom_id="user_profile_skills_modal",
+            title="Wizytówka - Zainteresowania 2",
+            custom_id="user_profile_interests2_modal",
         )
         self.database = database
         
@@ -142,12 +142,39 @@ class SkillsModal(nextcord.ui.Modal):
         )
         self.add_item(self.technologies)
 
+        self.games = nextcord.ui.TextInput(
+            label="Ulubione gry",
+            max_length=200,
+            required=False,
+            default_value=existing_data.get('ulubione_gry', '') if existing_data else ''
+        )
+        self.add_item(self.games)
+        
+        self.books = nextcord.ui.TextInput(
+            label="Ulubione książki",
+            max_length=200,
+            required=False,
+            default_value=existing_data.get('ulubione_ksiazki', '') if existing_data else ''
+        )
+        self.add_item(self.books)
+        
+        self.movies = nextcord.ui.TextInput(
+            label="Ulubione filmy/seriale",
+            max_length=200,
+            required=False,
+            default_value=existing_data.get('ulubione_filmy', '') if existing_data else ''
+        )
+        self.add_item(self.movies)
+
     async def callback(self, interaction: Interaction):
         data_to_update = {
-            'technologies': self.technologies.value
+            'technologies': self.technologies.value,
+            'ulubione_gry': self.games.value,
+            'ulubione_ksiazki': self.books.value,
+            'ulubione_filmy': self.movies.value
         }
         self.database.update_user_profile(interaction.user.id, **data_to_update)
-        await interaction.send("Zaktualizowano umiejętności w wizytówce!", ephemeral=True)
+        await interaction.send("Zaktualizowano dodatkowe zainteresowania w wizytówce!", ephemeral=True)
 
 
 class UserProfilesCog(commands.Cog):
@@ -163,7 +190,7 @@ class UserProfilesCog(commands.Cog):
         columns = [
             'user_id', 'nick', 'plec', 'zaimki', 'ulubiony_kolor', 'ulubione_zwierze', 
             'ulubiona_rzecz', 'hobby', 'jezyk_nativ', 'dodatkowe_jezyki', 'notatki_usera', 'notatki_auto',
-            'technologies'
+            'technologies', 'ulubione_gry', 'ulubione_ksiazki', 'ulubione_filmy'
         ]
         return dict(zip(columns, row))
 
@@ -188,12 +215,12 @@ class UserProfilesCog(commands.Cog):
         modal = InterestsModal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
-    @user_profile.subcommand(name="edytuj_umiejetnosci", description="Edytuj umiejętności techniczne (Technologie / Języki programowania)")
-    async def edit_skills(self, interaction: Interaction):
-        """Open a modal to edit technical skills (technologies)."""
+    @user_profile.subcommand(name="edytuj_zainteresowania2", description="Edytuj dodatkowe zainteresowania (Gry, Książki, Filmy, Technologie)")
+    async def edit_interests2(self, interaction: Interaction):
+        """Open a modal to edit additional interests (technologies, games, books, movies)."""
         row = self.database.get_user_profile(interaction.user.id)
         existing_data = self._row_to_dict(row)
-        modal = SkillsModal(self.database, existing_data)
+        modal = Interests2Modal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
     @user_profile.subcommand(name="pokaz", description="Pokaż wizytówkę swoją lub innej osoby")
@@ -228,6 +255,10 @@ class UserProfilesCog(commands.Cog):
         add_field("Ulubione zwierzę", "ulubione_zwierze")
         add_field("Ulubiona rzecz", "ulubiona_rzecz")
         add_field("Hobby", "hobby")
+        
+        add_field("Ulubione gry", "ulubione_gry")
+        add_field("Ulubione książki", "ulubione_ksiazki")
+        add_field("Ulubione filmy/seriale", "ulubione_filmy")
         
         # Skills
         add_field("Technologie (np. Python)", "technologies")
