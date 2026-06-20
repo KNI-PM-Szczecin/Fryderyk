@@ -322,6 +322,8 @@ class UserProfilesCog(commands.Cog):
         if val_notes and str(val_notes).strip():
             embed.add_field(name="Notatki", value=str(val_notes), inline=False)
             
+        await interaction.send(embed=embed)
+
     @nextcord.slash_command(name="wizytowki_lista", description="Pokaż kto ma uzupełnioną wizytówkę", default_member_permissions=nextcord.Permissions(administrator=True))
     async def list_filled_profiles(self, interaction: Interaction):
         """Show a list of users who have a profile in the database."""
