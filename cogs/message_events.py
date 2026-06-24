@@ -45,7 +45,7 @@ class MessageEventsCog(commands.Cog):
                     return
 
         parsed_content = DiscordUtils.parse_mentions(message)
-        
+
         # Determine category and guild details
         category_id = None
         category_name = None

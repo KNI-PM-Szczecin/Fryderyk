@@ -156,8 +156,62 @@ class DiscordUtils:
     """
     Contains utility functions specifically related to Discord objects and message processing.
     """
+    # File extensions treated as images/GIFs when an attachment lacks a usable MIME type.
+    IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".gifv", ".webp", ".bmp", ".tiff", ".apng")
+
+    @staticmethod
+    def extract_media_urls(message):
+        """
+        Collects URLs of images and GIFs attached to or embedded in a message.
+        Only the links are gathered — no blobs are downloaded. Covers uploaded
+        image/GIF attachments (matched by MIME type or file extension) as well as
+        image/GIF embeds such as Tenor and Giphy links.
+        Returns a list of unique URLs (possibly empty).
+        """
+        urls = []
+
+        def _add(url):
+            if url and url not in urls:
+                urls.append(url)
+
+        # Uploaded files: keep only images/GIFs, identified by MIME type or extension.
+        for attachment in message.attachments:
+            content_type = (attachment.content_type or "").lower()
+            filename = (attachment.filename or "").lower()
+            if content_type.startswith("image/") or filename.endswith(DiscordUtils.IMAGE_EXTENSIONS):
+                _add(attachment.url)
+
+        # Embeds: image embeds and animated GIF embeds (Tenor, Giphy, direct links).
+        # The image/thumbnail/video proxies always exist; their .url is None when unset.
+        for embed in message.embeds:
+            if embed.type in ("image", "gifv"):
+                _add(embed.url)
+                _add(embed.video.url)
+            _add(embed.image.url)
+            _add(embed.thumbnail.url)
+
+        return urls
+
     @staticmethod
     def parse_mentions(message):
+        """
+        Wrapper that returns the message content with mentions made human-readable
+        and any image/GIF links appended inline (so the logged text reads like
+        "siemka <link>"). Links already present in the text are not duplicated.
+        """
+        content = DiscordUtils._parse_mentions_text(message)
+
+        extra_links = [
+            url for url in DiscordUtils.extract_media_urls(message)
+            if url not in content
+        ]
+        if extra_links:
+            content = "\n".join([content, *extra_links]).strip()
+
+        return content
+
+    @staticmethod
+    def _parse_mentions_text(message):
         """
         Parses Discord mentions (<@ID>, <@!ID>, <@&ID>, <#ID>) into human-readable strings.
         Used for logging to the database.
