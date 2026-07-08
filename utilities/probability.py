@@ -58,43 +58,66 @@ class DynamicProbability:
             self.trigger_count = 0
             self.last_reset_date = current_reset_date
 
+    def get_chance_breakdown(self, extra_multiplier=1.0):
+        """
+        Computes the current probability denominator together with every
+        component that shapes it. Returns a dict:
+        - base_chance: denominator from base_sequence for the next trigger
+        - intraday_chance: base after the intra-day reduction (first trigger only)
+        - premium_active: whether premium hours currently apply
+        - daily_boost: accumulated multiplier for consecutive dry days (1.0 = none)
+        - final_chance: the effective denominator (what should_trigger rolls against)
+        Read-only with respect to the roll state (does not consume anything).
+        """
+        self._check_reset()
+
+        if self.trigger_count < len(self.base_sequence):
+            base_chance = self.base_sequence[self.trigger_count]
+        else:
+            base_chance = self.base_sequence[-1]
+
+        now = datetime.datetime.now(self.timezone)
+
+        # Intra-day growth for the first GIF to guarantee at least one trigger per day
+        intraday_chance = base_chance
+        if self.trigger_count == 0:
+            hours_passed = (now.hour - self.reset_hour) % 24
+            # Smoothly reduce the chance denominator from its base value down to 2 over 23 hours
+            max_reduction = base_chance - 2
+            if max_reduction > 0:
+                reduction = int(max_reduction * (hours_passed / 23.0))
+                intraday_chance = max(2, base_chance - reduction)
+
+        premium_active = now.hour in self.premium_hours
+
+        multiplier = extra_multiplier
+        if premium_active:
+            multiplier *= self.premium_multiplier
+
+        # Apply the boost for consecutive days without a trigger
+        daily_boost = 1.0
+        if self.days_without_trigger > 0:
+            daily_boost = self.daily_boost_multiplier ** self.days_without_trigger
+            multiplier *= daily_boost
+
+        # We decrease the chance denominator to increase the probability
+        # e.g., chance = 50, multiplier = 2.0 -> final_chance = 25 (which means 1/25)
+        final_chance = max(1, int(intraday_chance / multiplier))
+
+        return {
+            "base_chance": base_chance,
+            "intraday_chance": intraday_chance,
+            "premium_active": premium_active,
+            "daily_boost": daily_boost,
+            "final_chance": final_chance,
+        }
+
     def get_current_chance(self, extra_multiplier=1.0):
         """
         Returns the current probability denominator (e.g., 50 for a 1/50 chance).
         Takes multipliers into account (premium hours and the one provided as an argument).
         """
-        self._check_reset()
-        
-        if self.trigger_count < len(self.base_sequence):
-            chance = self.base_sequence[self.trigger_count]
-        else:
-            chance = self.base_sequence[-1]
-            
-        now = datetime.datetime.now(self.timezone)
-        
-        # Intra-day growth for the first GIF to guarantee at least one trigger per day
-        if self.trigger_count == 0:
-            hours_passed = (now.hour - self.reset_hour) % 24
-            # Smoothly reduce the chance denominator from its base value down to 2 over 23 hours
-            max_reduction = chance - 2
-            if max_reduction > 0:
-                reduction = int(max_reduction * (hours_passed / 23.0))
-                chance -= reduction
-                chance = max(2, chance)
-        
-        multiplier = extra_multiplier
-        
-        if now.hour in self.premium_hours:
-            multiplier *= self.premium_multiplier
-            
-        # Apply the boost for consecutive days without a trigger
-        if self.days_without_trigger > 0:
-            multiplier *= (self.daily_boost_multiplier ** self.days_without_trigger)
-            
-        # We decrease the chance denominator to increase the probability
-        # e.g., chance = 50, multiplier = 2.0 -> final_chance = 25 (which means 1/25)
-        final_chance = max(1, int(chance / multiplier))
-        return final_chance
+        return self.get_chance_breakdown(extra_multiplier)["final_chance"]
 
     def trigger(self):
         """Increases the counter after a successful event (e.g., a successful roll)."""

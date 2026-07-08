@@ -1,6 +1,9 @@
+import random
+
 import nextcord
 from nextcord.ext import commands
-import random
+from nextcord import Interaction
+
 from utilities.probability import DynamicProbability
 
 GIF_LIST = [
@@ -145,8 +148,47 @@ class RandomReactionCog(commands.Cog):
 
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()
-        
+
         extra_multiplier = 2.0 if is_mentioned else 1.0
         if has_magic_word or self.reaction_prob.should_trigger(extra_multiplier=extra_multiplier):
             gif_url = random.choice(GIF_LIST)
             await message.reply(gif_url)
+
+    @nextcord.slash_command(
+        name="gif_szansa",
+        description="Pokaż aktualną szansę, że Fryderyk odpowie GIF-em",
+        contexts=[nextcord.InteractionContextType.guild],
+    )
+    async def gif_szansa(self, interaction: Interaction):
+        """
+        Shows the current GIF-reply probability as a percentage (normal and
+        when the bot is mentioned), plus the state driving it (today's trigger
+        count, dry-day boost, premium hours). Read-only — checking the chance
+        does not consume a roll.
+        """
+        prob = self.reaction_prob
+        info = prob.get_chance_breakdown()
+        info_mention = prob.get_chance_breakdown(extra_multiplier=2.0)
+        chance = info["final_chance"]
+        chance_mention = info_mention["final_chance"]
+
+        premium_range = f"{min(prob.premium_hours)}:00-{max(prob.premium_hours)}:59" if prob.premium_hours else "brak"
+
+        lines = [
+            f"✨ **Aktualna szansa na GIF-a: {100 / chance:.2f}%** (1/{chance})",
+            f"📣 Przy wzmiance Fryderyka (x2): **{100 / chance_mention:.2f}%** (1/{chance_mention})",
+            "",
+            "Składniki:",
+            f"🎯 Baza dla GIF-a nr {prob.trigger_count + 1} dzisiaj: {100 / info['base_chance']:.2f}% (1/{info['base_chance']})",
+        ]
+        if info["intraday_chance"] != info["base_chance"]:
+            lines.append(f"⏫ Wzrost w ciągu dnia (brak GIF-a od {prob.reset_hour}:00): 1/{info['base_chance']} → 1/{info['intraday_chance']}")
+        lines.append(f"🔥 Godziny premium ({premium_range}): {f'**aktywne** (x{prob.premium_multiplier})' if info['premium_active'] else 'nieaktywne'}")
+        if info["daily_boost"] > 1.0:
+            lines.append(f"📈 Dni bez GIF-a: **{prob.days_without_trigger}** (boost x{info['daily_boost']:.2f})")
+        lines.append(f"📊 GIF-y od ostatniego resetu ({prob.reset_hour}:00): **{prob.trigger_count}**")
+
+        if not self.database.is_module_enabled(interaction.guild.id, "gif_react"):
+            lines.append("⛔ Uwaga: moduł `gif_react` jest obecnie wyłączony — Fryderyk nie wyśle GIF-a niezależnie od szansy.")
+
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
