@@ -1,8 +1,8 @@
-import aiohttp
 import nextcord
 from nextcord.ext import commands
 from nextcord import Interaction, SlashOption
 from decorators import cog_cooldown
+from utilities.baseUtils import post_webhook
 
 
 class SummarizeCog(commands.Cog):
@@ -17,6 +17,7 @@ class SummarizeCog(commands.Cog):
         """
         self.client = client
         self.config = config
+        self.database = database
 
     @nextcord.slash_command(
         name="summarize",
@@ -34,17 +35,32 @@ class SummarizeCog(commands.Cog):
         ),
         env: str = SlashOption(
             name="env",
-            description="Środowisko webhooka",
-            required=True,
+            description="Środowisko webhooka (domyślnie production)",
+            required=False,
+            default="production",
             choices={"Test": "test", "Production": "production"},
         ),
     ):
         """
         Slash command limited to a specific guild that triggers a channel summary.
         Sends a payload containing the target channel and the requesting user to an n8n webhook.
-        Protected by a rate limit (cog_cooldown).
+        Protected by a rate limit (cog_cooldown). The test environment is admin-only.
         """
         await interaction.response.defer(ephemeral=True)
+
+        if not self.database.is_module_enabled(interaction.guild.id, "summarize"):
+            await interaction.followup.send(
+                "Moduł `/summarize` jest obecnie wyłączony (zobacz `/moduly status`).",
+                ephemeral=True,
+            )
+            return
+
+        if env == "test" and not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send(
+                "Środowisko testowe jest dostępne tylko dla administratorów.",
+                ephemeral=True,
+            )
+            return
 
         source_channel = interaction.channel
         payload = {
@@ -56,22 +72,22 @@ class SummarizeCog(commands.Cog):
             "requested_by": str(interaction.user.id),
         }
 
-        url = self.config.get_n8n_webhook_url(env)
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as resp:
-                    if resp.status < 300:
-                        await interaction.followup.send(
-                            f"Wysłano żądanie podsumowania dla {channel.mention} (`{env}`).",
-                            ephemeral=True,
-                        )
-                    else:
-                        await interaction.followup.send(
-                            f"Webhook zwrócił błąd: HTTP {resp.status}.",
-                            ephemeral=True,
-                        )
+            status = await post_webhook(self.config.get_n8n_url("summarize", env), payload)
         except Exception as e:
             await interaction.followup.send(
                 f"Nie udało się połączyć z webhookiem: {e}",
+                ephemeral=True,
+            )
+            return
+
+        if status < 300:
+            await interaction.followup.send(
+                f"Wysłano żądanie podsumowania dla {channel.mention} (`{env}`).",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                f"Webhook zwrócił błąd: HTTP {status}.",
                 ephemeral=True,
             )

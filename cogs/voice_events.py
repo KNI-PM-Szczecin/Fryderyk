@@ -28,16 +28,14 @@ class VoiceEventsCog(commands.Cog):
         start_time = session_data['start_time']
         channel = session_data['channel']
 
-        # Check if channel is blacklisted
-        if self.database.is_blacklisted(guild_id, channel.id):
+        # Module check happens at session-end (write time); sessions are still
+        # tracked in memory while the module is off.
+        if not self.database.is_module_enabled(guild_id, "voice_log"):
             return
 
-        # Check if any of member's roles are blacklisted
-        if hasattr(member, 'roles'):
-            for role in member.roles:
-                if self.database.is_blacklisted(guild_id, role.id):
-                    return
-        
+        if self.database.is_context_blacklisted(guild_id, channel.id, member):
+            return
+
         # Current time in Polish timezone
         now = datetime.now(self.tz)
         duration = int((now - start_time).total_seconds())

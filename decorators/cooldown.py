@@ -39,43 +39,27 @@ class CogSharedCooldown:
 
 
 def cog_cooldown(
-    rate: int = None,
-    per: float = None,
+    rate: int,
+    per: float,
     message: str = "**Cooldown!** Fryderyk lubi wooolmo, poczekaj: **&value&s**.",
     per_guild: bool = True
 ):
     """
     Decorator to apply a cooldown to a slash command within a Cog.
-    
-    If rate and per are specified, it creates and uses a command-specific cooldown manager.
-    Otherwise, it checks for a `cooldown_manager` attribute on the Cog instance.
-    
-    If per_guild is True and the command is invoked in a guild, the cooldown is shared 
+
+    If per_guild is True and the command is invoked in a guild, the cooldown is shared
     across all users in that guild. Otherwise, the cooldown is user-specific.
     """
     def decorator(func):
+        # One shared manager per decorated command.
+        manager = CogSharedCooldown(rate, per)
+
         @functools.wraps(func)
         async def wrapper(self, interaction: nextcord.Interaction, *args, **kwargs):
             """
-            The inner wrapper function that executes the cooldown logic before 
+            The inner wrapper function that executes the cooldown logic before
             running the actual interaction command.
             """
-            # Determine which cooldown manager to use
-            if rate is not None and per is not None:
-                if not hasattr(self, "_dynamic_cooldown_managers"):
-                    self._dynamic_cooldown_managers = {}
-                
-                manager_key = func.__name__
-                if manager_key not in self._dynamic_cooldown_managers:
-                    self._dynamic_cooldown_managers[manager_key] = CogSharedCooldown(rate, per)
-                
-                manager = self._dynamic_cooldown_managers[manager_key]
-            else:
-                manager = getattr(self, "cooldown_manager", None)
-
-            if not manager:
-                return await func(self, interaction, *args, **kwargs)
-
             # Determine key (guild ID if per_guild and in a guild, user ID otherwise)
             if per_guild and interaction.guild_id:
                 bucket_key = interaction.guild_id

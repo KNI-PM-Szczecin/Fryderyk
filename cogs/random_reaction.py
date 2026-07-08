@@ -138,10 +138,10 @@ class RandomReactionCog(commands.Cog):
         """
         if message.author.bot: return
         if not message.guild: return
-        if self.database.is_gif_blacklisted(message.guild.id, message.channel.id): return
-        if hasattr(message.author, 'roles'):
-            for role in message.author.roles:
-                if self.database.is_gif_blacklisted(message.guild.id, role.id): return
+        if not self.database.is_module_enabled(message.guild.id, "gif_react"):
+            return
+        if self.database.is_context_blacklisted(message.guild.id, message.channel.id, message.author, gif=True):
+            return
 
         is_mentioned = self.client.user in message.mentions
         has_magic_word = "sam.uel" in message.content.lower()

@@ -26,7 +26,6 @@ class LogBlacklistCog(commands.Cog):
         Base slash command group for managing feature blacklists.
         Restricted to server administrators.
         """
-        pass
 
     @blacklist.subcommand(name="add", description="Dodaj kanał lub rolę do czarnej listy")
     async def add(
@@ -46,20 +45,19 @@ class LogBlacklistCog(commands.Cog):
 
         guild_id = interaction.guild.id
         db_put = self.database.put_blacklist_item if funkcja == "log" else self.database.put_gif_blacklist_item
-        
-        if channel:
-            item_id = channel.id
-            item_type = str(channel.type)
-            item_name = channel.name
-            db_put(guild_id, item_id, item_type)
-            await interaction.response.send_message(f"Kanał {item_name} został dodany do czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
+        # A single interaction allows only one response, so confirmations are
+        # collected and sent together (channel and role can be given at once).
+        added = []
+        if channel:
+            db_put(guild_id, channel.id, str(channel.type))
+            added.append(f"kanał {channel.name}")
         if role:
-            item_id = role.id
-            item_type = "role"
-            item_name = role.name
-            db_put(guild_id, item_id, item_type)
-            await interaction.response.send_message(f"Rola {item_name} została dodana do czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
+            db_put(guild_id, role.id, "role")
+            added.append(f"rola {role.name}")
+
+        summary = " i ".join(added).capitalize()
+        await interaction.response.send_message(f"{summary} — dodano do czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
     @blacklist.subcommand(name="remove", description="Usuń kanał lub rolę z czarnej listy")
     async def remove(
@@ -79,14 +77,17 @@ class LogBlacklistCog(commands.Cog):
 
         guild_id = interaction.guild.id
         db_delete = self.database.delete_blacklist_item if funkcja == "log" else self.database.delete_gif_blacklist_item
-        
+
+        removed = []
         if channel:
             db_delete(guild_id, channel.id)
-            await interaction.response.send_message(f"Kanał {channel.name} został usunięty z czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
-
+            removed.append(f"kanał {channel.name}")
         if role:
             db_delete(guild_id, role.id)
-            await interaction.response.send_message(f"Rola {role.name} została usunięta z czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
+            removed.append(f"rola {role.name}")
+
+        summary = " i ".join(removed).capitalize()
+        await interaction.response.send_message(f"{summary} — usunięto z czarnej listy dla funkcji: {funkcja}.", ephemeral=True)
 
     @blacklist.subcommand(name="list", description="Lista zablokowanych kanałów i ról")
     async def list_blacklist(

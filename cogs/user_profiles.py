@@ -235,44 +235,29 @@ class UserProfilesCog(commands.Cog):
         self.client = client
         self.config = config
         self.database = database
-        
-    def _row_to_dict(self, row):
-        """Convert a database row into a dictionary for easier access."""
-        if not row:
-            return {}
-        columns = [
-            'user_id', 'nick', 'plec', 'zaimki', 'ulubiony_kolor', 'ulubione_zwierze', 
-            'ulubiona_rzecz', 'hobby', 'jezyk_nativ', 'dodatkowe_jezyki', 'notatki_usera', 'notatki_auto',
-            'technologies', 'ulubione_gry', 'ulubione_ksiazki', 'ulubione_filmy'
-        ]
-        return dict(zip(columns, row))
 
     @nextcord.slash_command(name="wizytowka", description="Zarządzanie wizytówką użytkownika")
     async def user_profile(self, interaction: Interaction):
         """Base command for the user profile (wizytówka) feature."""
-        pass
 
     @user_profile.subcommand(name="edytuj_podstawowe", description="Edytuj podstawowe informacje (Nick, Płeć, Zaimki, Języki)")
     async def edit_basic_info(self, interaction: Interaction):
         """Open a modal to edit basic profile information."""
-        row = self.database.get_user_profile(interaction.user.id)
-        existing_data = self._row_to_dict(row)
+        existing_data = self.database.get_user_profile(interaction.user.id) or {}
         modal = BasicInfoModal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
     @user_profile.subcommand(name="edytuj_zainteresowania", description="Edytuj zainteresowania (Kolor, Zwierzę, Rzecz, Hobby, Notatki)")
     async def edit_interests(self, interaction: Interaction):
         """Open a modal to edit profile interests."""
-        row = self.database.get_user_profile(interaction.user.id)
-        existing_data = self._row_to_dict(row)
+        existing_data = self.database.get_user_profile(interaction.user.id) or {}
         modal = InterestsModal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
     @user_profile.subcommand(name="edytuj_zainteresowania2", description="Edytuj dodatkowe zainteresowania (Gry, Książki, Filmy, Technologie)")
     async def edit_interests2(self, interaction: Interaction):
         """Open a modal to edit additional interests (technologies, games, books, movies)."""
-        row = self.database.get_user_profile(interaction.user.id)
-        existing_data = self._row_to_dict(row)
+        existing_data = self.database.get_user_profile(interaction.user.id) or {}
         modal = Interests2Modal(self.database, existing_data)
         await interaction.response.send_modal(modal)
 
@@ -280,9 +265,8 @@ class UserProfilesCog(commands.Cog):
     async def show_profile(self, interaction: Interaction, member: nextcord.Member = SlashOption(name="uzytkownik", description="Osoba, której wizytówkę chcesz sprawdzić", required=False)):
         """Show the specified user's profile, or the caller's profile if no user is specified."""
         target = member or interaction.user
-        row = self.database.get_user_profile(target.id)
-        data = self._row_to_dict(row)
-        
+        data = self.database.get_user_profile(target.id) or {}
+
         embed_color = nextcord.Color.purple()
         if data and data.get("ulubiony_kolor"):
             color_str = str(data["ulubiony_kolor"]).strip()

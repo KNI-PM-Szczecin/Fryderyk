@@ -26,6 +26,10 @@ class GeneralEventsCog(commands.Cog):
         channel_id = channel.id if channel else None
 
         if guild_id:
+            # Guild-less events (e.g. bot start) are always logged.
+            if not self.database.is_module_enabled(guild_id, "event_log"):
+                return
+
             # Check if channel is blacklisted
             if channel_id and self.database.is_blacklisted(guild_id, channel_id):
                 return
@@ -59,7 +63,7 @@ class GeneralEventsCog(commands.Cog):
         Event listener triggered when the bot is fully ready.
         Logs the bot's startup event into the database.
         """
-        print(f"GeneralEventsCog: Bot is ready and listening for all events.")
+        print("GeneralEventsCog: Bot is ready and listening for all events.")
         self._log_event(self.client.user.id, self.client.user.name, "bot start", f"logged in as {self.client.user}", is_bot=True)
 
     # --- REACTION EVENTS ---

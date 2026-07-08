@@ -1,8 +1,7 @@
-import aiohttp
 import nextcord
 from nextcord.ext import commands
 
-from utilities.baseUtils import DiscordUtils
+from utilities.baseUtils import DiscordUtils, post_webhook
 
 
 class MentionTriggerCog(commands.Cog):
@@ -37,13 +36,12 @@ class MentionTriggerCog(commands.Cog):
         if not self.client.user or self.client.user not in message.mentions:
             return
 
-        # Respect the same blacklist rules used for message logging.
-        if self.database.is_blacklisted(message.guild.id, message.channel.id):
+        if not self.database.is_module_enabled(message.guild.id, "mention_webhook"):
             return
-        if hasattr(message.author, "roles"):
-            for role in message.author.roles:
-                if self.database.is_blacklisted(message.guild.id, role.id):
-                    return
+
+        # Respect the same blacklist rules used for message logging.
+        if self.database.is_context_blacklisted(message.guild.id, message.channel.id, message.author):
+            return
 
         parsed_content = DiscordUtils.parse_mentions(message)
 
@@ -56,14 +54,14 @@ class MentionTriggerCog(commands.Cog):
             "content": parsed_content,
         }
 
-        async with aiohttp.ClientSession() as session:
-            for env in ("test", "production"):
-                url = self.config.get_n8n_mention_webhook_url(env)
-                try:
-                    async with session.post(url, json=payload) as resp:
-                        if resp.status < 300:
-                            print(f"[mention_trigger] webhook ok ({env}): HTTP {resp.status}")
-                        else:
-                            print(f"[mention_trigger] webhook error ({env}): HTTP {resp.status}")
-                except Exception as e:
-                    print(f"[mention_trigger] webhook failed ({env}): {e}")
+        # Which environments to notify is configurable via N8N_MENTION_ENVS
+        # (comma-separated, default: production only).
+        for env in self.config.get_n8n_mention_envs():
+            try:
+                status = await post_webhook(self.config.get_n8n_url("mention", env), payload)
+                if status < 300:
+                    print(f"[mention_trigger] webhook ok ({env}): HTTP {status}")
+                else:
+                    print(f"[mention_trigger] webhook error ({env}): HTTP {status}")
+            except Exception as e:
+                print(f"[mention_trigger] webhook failed ({env}): {e}")

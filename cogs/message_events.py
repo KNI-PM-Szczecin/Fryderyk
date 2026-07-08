@@ -34,27 +34,20 @@ class MessageEventsCog(commands.Cog):
         if not message.guild:
             return
 
-        # Check if channel is blacklisted
-        if self.database.is_blacklisted(message.guild.id, message.channel.id):
+        if not self.database.is_module_enabled(message.guild.id, "message_log"):
             return
 
-        # Check if any of author's roles are blacklisted
-        if hasattr(message.author, 'roles'):
-            for role in message.author.roles:
-                if self.database.is_blacklisted(message.guild.id, role.id):
-                    return
+        if self.database.is_context_blacklisted(message.guild.id, message.channel.id, message.author):
+            return
 
         parsed_content = DiscordUtils.parse_mentions(message)
 
-        # Determine category and guild details
+        # Determine category details
         category_id = None
         category_name = None
         if hasattr(message.channel, 'category') and message.channel.category:
             category_id = message.channel.category.id
             category_name = message.channel.category.name
-
-        guild_id = message.guild.id if message.guild else None
-        guild_name = message.guild.name if message.guild else None
 
         # Convert UTC time to Polish timezone
         polish_date = message.created_at.astimezone(self.tz)
@@ -71,8 +64,8 @@ class MessageEventsCog(commands.Cog):
             edit_date=None,
             channel_id=message.channel.id,
             channel_name=message.channel.name,
-            guild_id=guild_id,
-            guild_name=guild_name,
+            guild_id=message.guild.id,
+            guild_name=message.guild.name,
             category_id=category_id,
             category_name=category_name
         )
@@ -91,15 +84,11 @@ class MessageEventsCog(commands.Cog):
         if not after.guild:
             return
 
-        # Check if channel is blacklisted
-        if self.database.is_blacklisted(after.guild.id, after.channel.id):
+        if not self.database.is_module_enabled(after.guild.id, "message_log"):
             return
 
-        # Check if any of author's roles are blacklisted
-        if hasattr(after.author, 'roles'):
-            for role in after.author.roles:
-                if self.database.is_blacklisted(after.guild.id, role.id):
-                    return
+        if self.database.is_context_blacklisted(after.guild.id, after.channel.id, after.author):
+            return
 
         # If content hasn't changed (e.g. only embeds loaded), skip
         if before.content == after.content:
@@ -112,9 +101,6 @@ class MessageEventsCog(commands.Cog):
         if hasattr(after.channel, 'category') and after.channel.category:
             category_id = after.channel.category.id
             category_name = after.channel.category.name
-
-        guild_id = after.guild.id if after.guild else None
-        guild_name = after.guild.name if after.guild else None
 
         # Convert UTC times to Polish timezone
         polish_date = after.created_at.astimezone(self.tz)
@@ -134,8 +120,8 @@ class MessageEventsCog(commands.Cog):
             edit_date=polish_edit_date,
             channel_id=after.channel.id,
             channel_name=after.channel.name,
-            guild_id=guild_id,
-            guild_name=guild_name,
+            guild_id=after.guild.id,
+            guild_name=after.guild.name,
             category_id=category_id,
             category_name=category_name
         )

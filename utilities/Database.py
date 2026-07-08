@@ -1,6 +1,6 @@
 import psycopg2
 from psycopg2 import pool
-import logging
+from psycopg2.extras import RealDictCursor
 
 class Database:
     """
@@ -15,12 +15,42 @@ class Database:
         """
         self.db_config = db_config
         self.connection_pool = None
+        self._log_blacklist_cache = set()
+        self._gif_blacklist_cache = set()
+        self._disabled_modules_cache = set()
         self._ensure_database_exists()
         self._initialize_pool()
         if self.connection_pool:
             self._create_tables()
+            self._load_blacklist_caches()
+            self._load_module_states()
         else:
             print("Database: Critical error - connection pool is not initialized. Skipping table creation.")
+
+    def _load_blacklist_caches(self):
+        """
+        Loads both blacklists into in-memory sets of (guild_id, disabled_id).
+        Blacklists are consulted on every message/event, so keeping them in memory
+        avoids several SELECTs per message; put_*/delete_* keep the sets in sync.
+        """
+        self._log_blacklist_cache = {
+            tuple(row) for row in self.fetch_all("SELECT guild_id, disabled_id FROM log_blacklist")
+        }
+        self._gif_blacklist_cache = {
+            tuple(row) for row in self.fetch_all("SELECT guild_id, disabled_id FROM gif_blacklist")
+        }
+        print(f"[DB] Blacklist caches loaded ({len(self._log_blacklist_cache)} log, {len(self._gif_blacklist_cache)} gif).")
+
+    def _load_module_states(self):
+        """
+        Loads disabled modules into an in-memory set of (guild_id, module).
+        A module is enabled by default; a row in module_states means disabled.
+        Kept in sync by disable_module/enable_module.
+        """
+        self._disabled_modules_cache = {
+            tuple(row) for row in self.fetch_all("SELECT guild_id, module FROM module_states")
+        }
+        print(f"[DB] Module states loaded ({len(self._disabled_modules_cache)} disabled).")
 
     def _ensure_database_exists(self):
         """
@@ -65,12 +95,13 @@ class Database:
 
     def _initialize_pool(self):
         """
-        Initializes a psycopg2 SimpleConnectionPool.
-        Establishes a minimum of 1 and maximum of 20 concurrent connections
-        using the provided database credentials.
+        Initializes a psycopg2 ThreadedConnectionPool (1-20 connections).
+        Must be the threaded variant: queries run both on the event loop and
+        in asyncio.to_thread workers (backfill, data sync, command audit),
+        and SimpleConnectionPool is not thread-safe.
         """
         try:
-            self.connection_pool = psycopg2.pool.SimpleConnectionPool(
+            self.connection_pool = pool.ThreadedConnectionPool(
                 1, 20,
                 user=self.db_config.get('user'),
                 password=self.db_config.get('password'),
@@ -207,6 +238,15 @@ class Database:
                         disabled_id BIGINT,
                         type TEXT,
                         PRIMARY KEY (guild_id, disabled_id)
+                    )
+                ''')
+
+                # Module States Table (a row = module disabled in that guild)
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS module_states (
+                        guild_id BIGINT,
+                        module TEXT,
+                        PRIMARY KEY (guild_id, module)
                     )
                 ''')
 
@@ -355,6 +395,26 @@ class Database:
                 return cursor.fetchall()
         except (Exception, psycopg2.DatabaseError) as error:
             print(f"Error fetching data: {error}")
+            return []
+        finally:
+            if self.connection_pool:
+                self.connection_pool.putconn(conn)
+
+    def fetch_one_dict(self, query, params=None):
+        """
+        Executes a SELECT query and returns a single row as a dict keyed by column
+        name (or None). Unlike fetch_one, results don't depend on column order,
+        so `SELECT *` stays safe when the schema grows.
+        """
+        if not self.connection_pool:
+            return None
+        conn = self.connection_pool.getconn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, params)
+                return cursor.fetchone()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(f"Error fetching data: {error}")
         finally:
             if self.connection_pool:
                 self.connection_pool.putconn(conn)
@@ -380,18 +440,6 @@ class Database:
             print(f"[DB] User {name} ({user_id}) synced successfully.")
         except Exception as e:
             print(f"[DB ERR] Failed to sync user {user_id}: {e}")
-
-    def get_user(self, user_id):
-        """
-        Retrieves all database fields for a specific user by their Discord ID.
-        """
-        return self.fetch_one("SELECT * FROM users WHERE user_id = %s", (user_id,))
-
-    def delete_user(self, user_id):
-        """
-        Removes a user from the database by their Discord ID.
-        """
-        self.execute_query("DELETE FROM users WHERE user_id = %s", (user_id,))
 
     # --- USER PROFILES METHODS ---
     def update_user_profile(self, user_id, **kwargs):
@@ -425,9 +473,10 @@ class Database:
 
     def get_user_profile(self, user_id):
         """
-        Retrieves the extended profile details for a specific user by their Discord ID.
+        Retrieves the extended profile details for a specific user by their Discord ID
+        as a dict keyed by column name (or None if no profile exists).
         """
-        return self.fetch_one("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
+        return self.fetch_one_dict("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
 
     def get_all_user_profiles(self):
         """
@@ -451,18 +500,6 @@ class Database:
         except Exception as e:
             print(f"[DB ERR] Failed to sync guild {guild_id}: {e}")
 
-    def get_guild(self, guild_id):
-        """
-        Retrieves guild information by its ID.
-        """
-        return self.fetch_one("SELECT * FROM guilds WHERE guild_id = %s", (guild_id,))
-
-    def delete_guild(self, guild_id):
-        """
-        Removes a guild from the database by its ID.
-        """
-        self.execute_query("DELETE FROM guilds WHERE guild_id = %s", (guild_id,))
-
     # --- ROLES METHODS ---
     def put_role(self, role_id, guild_id, role_name):
         """
@@ -478,12 +515,6 @@ class Database:
             print(f"[DB] Role {role_name} ({role_id}) in guild {guild_id} synced successfully.")
         except Exception as e:
             print(f"[DB ERR] Failed to sync role {role_id}: {e}")
-
-    def get_role(self, role_id):
-        """
-        Retrieves role information by its ID.
-        """
-        return self.fetch_one("SELECT * FROM roles WHERE role_id = %s", (role_id,))
 
     def delete_role(self, role_id):
         """
@@ -503,18 +534,6 @@ class Database:
             # print(f"[DB] User {user_id} assigned role {role_id}.")
         except Exception as e:
             print(f"[DB ERR] Failed to assign role {role_id} to user {user_id}: {e}")
-
-    def get_user_roles(self, user_id):
-        """
-        Retrieves a list of all role IDs assigned to a specific user.
-        """
-        return self.fetch_all("SELECT role_id FROM user_roles WHERE user_id = %s", (user_id,))
-
-    def delete_user_role(self, user_id, role_id):
-        """
-        Unassigns a specific role from a user.
-        """
-        self.execute_query("DELETE FROM user_roles WHERE user_id = %s AND role_id = %s", (user_id, role_id))
 
     def clear_user_roles(self, user_id):
         """
@@ -542,14 +561,6 @@ class Database:
         except Exception as e:
             print(f"[DB ERR] Failed to log message from {user_name}: {e}")
 
-    def get_messages(self, user_id=None, limit=100):
-        """
-        Retrieves the most recent messages. Can be optionally filtered by user_id and limited in count.
-        """
-        if user_id:
-            return self.fetch_all("SELECT * FROM messages WHERE user_id = %s ORDER BY date DESC LIMIT %s", (user_id, limit))
-        return self.fetch_all("SELECT * FROM messages ORDER BY date DESC LIMIT %s", (limit,))
-
     def message_exists(self, discord_id):
         """
         Checks if a message with the specified Discord ID already exists in the database.
@@ -557,12 +568,6 @@ class Database:
         if discord_id is None:
             return False
         return self.fetch_one("SELECT 1 FROM messages WHERE discord_id = %s LIMIT 1", (discord_id,)) is not None
-
-    def delete_message(self, message_id):
-        """
-        Removes a message from the database using its internal database ID.
-        """
-        self.execute_query("DELETE FROM messages WHERE id = %s", (message_id,))
 
     # --- VOICE METHODS ---
     def put_voice(self, user_id, user_name, is_bot, time_on, date_join, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
@@ -580,20 +585,6 @@ class Database:
             print(f"[{timestamp_str}] [DB] Logged {bot_tag}voice session: {user_name} spent {time_on}s in {channel_name}.")
         except Exception as e:
             print(f"[DB ERR] Failed to log voice session for {user_name}: {e}")
-
-    def get_voice_records(self, user_id=None, limit=100):
-        """
-        Retrieves recent voice session records. Can be filtered by user_id and limited in count.
-        """
-        if user_id:
-            return self.fetch_all("SELECT * FROM voice WHERE user_id = %s ORDER BY date_join DESC LIMIT %s", (user_id, limit))
-        return self.fetch_all("SELECT * FROM voice ORDER BY date_join DESC LIMIT %s", (limit,))
-
-    def delete_voice_record(self, record_id):
-        """
-        Removes a voice session record using its internal database ID.
-        """
-        self.execute_query("DELETE FROM voice WHERE id = %s", (record_id,))
 
     # --- EVENTS METHODS ---
     def put_event(self, user_id, user_name, is_bot, what, about, date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
@@ -614,21 +605,42 @@ class Database:
         except Exception as e:
             print(f"[DB ERR] Failed to log event '{what}': {e}")
 
-    def get_events(self, what=None, limit=100):
+    # --- RECENT LOGS METHODS (for /logi) ---
+    def get_recent_events(self, guild_id, limit, whats=None):
         """
-        Retrieves recent logged events. Can be filtered by the 'what' field (event type) and limited.
+        Returns the newest events for a guild as (date, user_name, what, about),
+        newest first. Optionally filtered to specific 'what' values (tuple).
         """
-        if what:
-            return self.fetch_all("SELECT * FROM events WHERE what = %s ORDER BY id DESC LIMIT %s", (what, limit))
-        return self.fetch_all("SELECT * FROM events ORDER BY id DESC LIMIT %s", (limit,))
+        if whats:
+            return self.fetch_all(
+                "SELECT date, user_name, what, about FROM events WHERE guild_id = %s AND what IN %s ORDER BY id DESC LIMIT %s",
+                (guild_id, tuple(whats), limit))
+        return self.fetch_all(
+            "SELECT date, user_name, what, about FROM events WHERE guild_id = %s ORDER BY id DESC LIMIT %s",
+            (guild_id, limit))
 
-    def delete_event(self, event_id):
+    def get_recent_messages(self, guild_id, limit):
         """
-        Removes a specific event record using its internal database ID.
+        Returns the newest logged messages for a guild as
+        (date, user_name, channel_name, message), newest first.
         """
-        self.execute_query("DELETE FROM events WHERE id = %s", (event_id,))
+        return self.fetch_all(
+            "SELECT date, user_name, channel_name, message FROM messages WHERE guild_id = %s ORDER BY id DESC LIMIT %s",
+            (guild_id, limit))
+
+    def get_recent_voice(self, guild_id, limit):
+        """
+        Returns the newest voice sessions for a guild as
+        (date_join, user_name, channel_name, time_on), newest first.
+        """
+        return self.fetch_all(
+            "SELECT date_join, user_name, channel_name, time_on FROM voice WHERE guild_id = %s ORDER BY id DESC LIMIT %s",
+            (guild_id, limit))
 
     # --- BLACKLIST METHODS ---
+    # Membership checks run against the in-memory caches (loaded on startup,
+    # kept in sync by put_*/delete_*), so they are safe to call from event
+    # handlers without hitting PostgreSQL.
     def put_blacklist_item(self, guild_id, disabled_id, item_type):
         """
         Adds an item (channel or role) to the event/message logging blacklist for a specific guild.
@@ -638,31 +650,74 @@ class Database:
         VALUES (%s, %s, %s)
         ON CONFLICT (guild_id, disabled_id) DO UPDATE SET type = EXCLUDED.type
         """
-        try:
-            self.execute_query(query, (guild_id, disabled_id, item_type))
+        if self.execute_query(query, (guild_id, disabled_id, item_type)) is not None:
+            self._log_blacklist_cache.add((guild_id, disabled_id))
             print(f"[DB] Blacklisted {item_type} {disabled_id} in guild {guild_id}.")
-        except Exception as e:
-            print(f"[DB ERR] Failed to blacklist {disabled_id}: {e}")
+        else:
+            print(f"[DB ERR] Failed to blacklist {disabled_id}.")
 
     def delete_blacklist_item(self, guild_id, disabled_id):
         """
         Removes an item from the event/message logging blacklist.
         """
         self.execute_query("DELETE FROM log_blacklist WHERE guild_id = %s AND disabled_id = %s", (guild_id, disabled_id))
+        self._log_blacklist_cache.discard((guild_id, disabled_id))
 
     def is_blacklisted(self, guild_id, disabled_id):
         """
         Checks whether a specific channel or role is currently blacklisted from event/message logging.
         """
-        if not guild_id or not disabled_id:
-            return False
-        return self.fetch_one("SELECT 1 FROM log_blacklist WHERE guild_id = %s AND disabled_id = %s LIMIT 1", (guild_id, disabled_id)) is not None
+        return (guild_id, disabled_id) in self._log_blacklist_cache
 
     def get_blacklist(self, guild_id):
         """
         Retrieves the complete event/message logging blacklist for a specific guild.
         """
         return self.fetch_all("SELECT disabled_id, type FROM log_blacklist WHERE guild_id = %s", (guild_id,))
+
+    def is_context_blacklisted(self, guild_id, channel_id, member=None, gif=False):
+        """
+        Combined blacklist check used by the event cogs: True when the channel
+        or any of the member's roles is blacklisted. `member` may be a User
+        (no roles) — it is then treated as having none. Set gif=True to check
+        the GIF blacklist instead of the logging one.
+        """
+        check = self.is_gif_blacklisted if gif else self.is_blacklisted
+        if check(guild_id, channel_id):
+            return True
+        for role in getattr(member, "roles", None) or []:
+            if check(guild_id, role.id):
+                return True
+        return False
+
+    # --- MODULE STATES METHODS ---
+    # Enabled/disabled checks run against the in-memory cache (see
+    # _load_module_states); modules are enabled by default.
+    def disable_module(self, guild_id, module):
+        """
+        Disables a bot module (feature) for a guild by inserting a row into module_states.
+        """
+        query = "INSERT INTO module_states (guild_id, module) VALUES (%s, %s) ON CONFLICT DO NOTHING"
+        if self.execute_query(query, (guild_id, module)) is not None:
+            self._disabled_modules_cache.add((guild_id, module))
+            print(f"[DB] Module '{module}' disabled in guild {guild_id}.")
+        else:
+            print(f"[DB ERR] Failed to disable module '{module}' in guild {guild_id}.")
+
+    def enable_module(self, guild_id, module):
+        """
+        Re-enables a bot module (feature) for a guild by removing its module_states row.
+        """
+        self.execute_query("DELETE FROM module_states WHERE guild_id = %s AND module = %s", (guild_id, module))
+        self._disabled_modules_cache.discard((guild_id, module))
+        print(f"[DB] Module '{module}' enabled in guild {guild_id}.")
+
+    def is_module_enabled(self, guild_id, module):
+        """
+        Checks whether a bot module is enabled for a guild (default: enabled).
+        Pure set lookup — safe to call from event handlers.
+        """
+        return (guild_id, module) not in self._disabled_modules_cache
 
     # --- GIF BLACKLIST METHODS ---
     def put_gif_blacklist_item(self, guild_id, disabled_id, item_type):
@@ -674,25 +729,24 @@ class Database:
         VALUES (%s, %s, %s)
         ON CONFLICT (guild_id, disabled_id) DO UPDATE SET type = EXCLUDED.type
         """
-        try:
-            self.execute_query(query, (guild_id, disabled_id, item_type))
+        if self.execute_query(query, (guild_id, disabled_id, item_type)) is not None:
+            self._gif_blacklist_cache.add((guild_id, disabled_id))
             print(f"[DB] GIF-Blacklisted {item_type} {disabled_id} in guild {guild_id}.")
-        except Exception as e:
-            print(f"[DB ERR] Failed to GIF-blacklist {disabled_id}: {e}")
+        else:
+            print(f"[DB ERR] Failed to GIF-blacklist {disabled_id}.")
 
     def delete_gif_blacklist_item(self, guild_id, disabled_id):
         """
         Removes an item from the random GIF reaction blacklist.
         """
         self.execute_query("DELETE FROM gif_blacklist WHERE guild_id = %s AND disabled_id = %s", (guild_id, disabled_id))
+        self._gif_blacklist_cache.discard((guild_id, disabled_id))
 
     def is_gif_blacklisted(self, guild_id, disabled_id):
         """
         Checks whether a specific channel or role is currently blacklisted from random GIF reactions.
         """
-        if not guild_id or not disabled_id:
-            return False
-        return self.fetch_one("SELECT 1 FROM gif_blacklist WHERE guild_id = %s AND disabled_id = %s LIMIT 1", (guild_id, disabled_id)) is not None
+        return (guild_id, disabled_id) in self._gif_blacklist_cache
 
     def get_gif_blacklist(self, guild_id):
         """

@@ -16,18 +16,18 @@ def _read_git_info():
     """
     git_dir = os.path.join(REPO_ROOT, ".git")
     try:
-        with open(os.path.join(git_dir, "HEAD")) as f:
+        with open(os.path.join(git_dir, "HEAD"), encoding="utf-8") as f:
             head = f.read().strip()
 
         if head.startswith("ref: "):
             ref_path = os.path.join(git_dir, head[5:])
-            with open(ref_path) as f:
+            with open(ref_path, encoding="utf-8") as f:
                 commit_hash = f.read().strip()
         else:
             commit_hash = head
 
         reflog_path = os.path.join(git_dir, "logs", "HEAD")
-        with open(reflog_path) as f:
+        with open(reflog_path, encoding="utf-8") as f:
             last_line = f.readlines()[-1]
 
         # format: <old> <new> <name> <email> <unix_ts> <tz_offset>\t<msg>

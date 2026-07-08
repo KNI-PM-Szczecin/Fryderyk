@@ -1,7 +1,29 @@
 import os
 import inspect
 import importlib
+import aiohttp
 from dotenv import load_dotenv
+
+
+def get_operator_role_id() -> int:
+    """
+    ID of the "Fryderyk Operator" role required to use ANY of the bot's slash
+    commands (enforced by a global application command check in main.py and by
+    /off's explicit has_role check). Configurable via the OPERATOR_ROLE_ID env
+    var. Must be called after load_dotenv() has run (i.e. after ConfigReader
+    is constructed), not at import time of this module.
+    """
+    return int(os.getenv("OPERATOR_ROLE_ID", "1524128045772968017"))
+
+
+async def post_webhook(url: str, payload: dict) -> int:
+    """
+    POSTs a JSON payload to a webhook URL and returns the HTTP status code.
+    Network errors propagate to the caller (aiohttp exceptions).
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as resp:
+            return resp.status
 
 class ConfigReader:
     """
@@ -26,7 +48,7 @@ class ConfigReader:
         """
         return {
             "host": os.getenv("POSTGRES_HOST", "localhost"),
-            "port": int(os.getenv("POSTGRES_PORT", 5432)),
+            "port": int(os.getenv("POSTGRES_PORT", "5432")),
             "user": os.getenv("POSTGRES_USER", "postgres"),
             "password": os.getenv("POSTGRES_PASSWORD", "password"),
             "database": os.getenv("POSTGRES_DB", "fryderyk_db")
@@ -38,61 +60,32 @@ class ConfigReader:
         """
         return os.getenv("TIMEZONE", "Europe/Warsaw")
 
-    def get_n8n_webhook_url(self, env: str) -> str:
-        """
-        Retrieves the primary n8n webhook URL, dynamically choosing between production and test environments.
-        """
-        if env == "production":
-            return os.getenv(
-                "N8N_WEBHOOK_PRODUCTION_URL",
-                "http://host.docker.internal:5678/webhook/b9e64b80-b5e4-4a45-9a21-55663dc072de",
-            )
-        return os.getenv(
-            "N8N_WEBHOOK_TEST_URL",
-            "http://host.docker.internal:5678/webhook-test/b9e64b80-b5e4-4a45-9a21-55663dc072de",
-        )
+    # feature -> (env var prefix, default host, webhook path)
+    # Env var names stay as before: <PREFIX>_PRODUCTION_URL / <PREFIX>_TEST_URL.
+    _N8N_WEBHOOKS = {
+        "summarize": ("N8N_WEBHOOK", "http://host.docker.internal:5678", "b9e64b80-b5e4-4a45-9a21-55663dc072de"),
+        "profile": ("N8N_PROFILE_WEBHOOK", "http://localhost:5678", "36069440-da51-423b-8ede-acba6b17a3a7"),
+        "speak": ("N8N_SPEAK_WEBHOOK", "http://host.docker.internal:5678", "wypowiedz-sie"),
+        "mention": ("N8N_MENTION_WEBHOOK", "http://host.docker.internal:5678", "fryderyk-mention"),
+    }
 
-    def get_n8n_profile_webhook_url(self, env: str) -> str:
+    def get_n8n_url(self, feature: str, env: str) -> str:
         """
-        Retrieves the n8n webhook URL specifically for the profile synchronization feature.
+        Retrieves the n8n webhook URL for the given feature ('summarize', 'profile',
+        'speak', 'mention') and environment ('production' or 'test').
         """
+        env_prefix, default_host, path = self._N8N_WEBHOOKS[feature]
         if env == "production":
-            return os.getenv(
-                "N8N_PROFILE_WEBHOOK_PRODUCTION_URL",
-                "http://localhost:5678/webhook/36069440-da51-423b-8ede-acba6b17a3a7",
-            )
-        return os.getenv(
-            "N8N_PROFILE_WEBHOOK_TEST_URL",
-            "http://localhost:5678/webhook-test/36069440-da51-423b-8ede-acba6b17a3a7",
-        )
+            return os.getenv(f"{env_prefix}_PRODUCTION_URL", f"{default_host}/webhook/{path}")
+        return os.getenv(f"{env_prefix}_TEST_URL", f"{default_host}/webhook-test/{path}")
 
-    def get_n8n_speak_webhook_url(self, env: str) -> str:
+    def get_n8n_mention_envs(self) -> list[str]:
         """
-        Retrieves the n8n webhook URL for the 'speak up' (wypowiedz-sie) feature.
+        Environments the mention webhook fires to, from the comma-separated
+        N8N_MENTION_ENVS variable (default: production only).
         """
-        if env == "production":
-            return os.getenv(
-                "N8N_SPEAK_WEBHOOK_PRODUCTION_URL",
-                "http://host.docker.internal:5678/webhook/wypowiedz-sie",
-            )
-        return os.getenv(
-            "N8N_SPEAK_WEBHOOK_TEST_URL",
-            "http://host.docker.internal:5678/webhook-test/wypowiedz-sie",
-        )
-
-    def get_n8n_mention_webhook_url(self, env: str) -> str:
-        """
-        Retrieves the n8n webhook URL used when the bot is directly mentioned.
-        """
-        if env == "production":
-            return os.getenv(
-                "N8N_MENTION_WEBHOOK_PRODUCTION_URL",
-                "http://host.docker.internal:5678/webhook/fryderyk-mention",
-            )
-        return os.getenv(
-            "N8N_MENTION_WEBHOOK_TEST_URL",
-            "http://host.docker.internal:5678/webhook-test/fryderyk-mention",
-        )
+        raw = os.getenv("N8N_MENTION_ENVS", "production")
+        return [e.strip() for e in raw.split(",") if e.strip()]
 
 class Loader:
     """
