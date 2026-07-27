@@ -321,12 +321,21 @@ class UserProfilesCog(commands.Cog):
 
     @nextcord.slash_command(name="wizytowki_lista", description="Pokaż kto ma uzupełnioną wizytówkę", default_member_permissions=nextcord.Permissions(administrator=True))
     async def list_filled_profiles(self, interaction: Interaction):
-        """Show a list of users who have a profile in the database."""
+        """
+        Show a list of users who have a profile in the database. Profiles are
+        stored globally (one row per user), but the bot serves several guilds —
+        so the list is filtered down to members of THIS guild, otherwise it would
+        expose people from other servers as unresolvable mentions.
+        """
         rows = self.database.get_all_user_profiles()
-        if not rows:
+        guild = interaction.guild
+        user_ids = [
+            row[0] for row in rows
+            if guild is not None and guild.get_member(row[0]) is not None
+        ]
+        if not user_ids:
             return await interaction.send("Nikt jeszcze nie uzupełnił wizytówki.", ephemeral=True)
-            
-        user_ids = [row[0] for row in rows]
+
         mentions = [f"<@{uid}>" for uid in user_ids]
         
         description = "\n".join(mentions)

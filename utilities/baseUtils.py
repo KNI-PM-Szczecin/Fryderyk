@@ -5,15 +5,36 @@ import aiohttp
 from dotenv import load_dotenv
 
 
-def get_operator_role_id() -> int:
+def get_operator_role_name() -> str:
     """
-    ID of the "Fryderyk Operator" role required to use ANY of the bot's slash
-    commands (enforced by a global application command check in main.py and by
-    /off's explicit has_role check). Configurable via the OPERATOR_ROLE_ID env
-    var. Must be called after load_dotenv() has run (i.e. after ConfigReader
-    is constructed), not at import time of this module.
+    Name of the role required to use ANY of the bot's slash commands (enforced by
+    a global application command check in main.py and by /off's explicit check).
+    Matching by name instead of ID means the same build works on every guild —
+    each server just needs a role with this name. Configurable via the
+    OPERATOR_ROLE_NAME env var. Must be called after load_dotenv() has run (i.e.
+    after ConfigReader is constructed), not at import time of this module.
     """
-    return int(os.getenv("OPERATOR_ROLE_ID", "1524128045772968017"))
+    return os.getenv("OPERATOR_ROLE_NAME", "fryderyk-operator")
+
+
+def normalize_role_name(name: str) -> str:
+    """
+    Reduces a role name to a comparable form: lowercase, letters/digits only.
+    So "fryderyk-operator", "Fryderyk Operator" and "Fryderyk_Operator" all
+    match — guilds rarely name the role identically, and a case/separator
+    mismatch would silently lock everyone out of every command.
+    """
+    return "".join(ch for ch in name.casefold() if ch.isalnum())
+
+
+def is_operator(interaction) -> bool:
+    """
+    True if the interaction's author has the operator role (matched by name via
+    normalize_role_name). False outside guilds, where the user has no roles.
+    """
+    wanted = normalize_role_name(get_operator_role_name())
+    roles = getattr(interaction.user, "roles", None) or []
+    return any(normalize_role_name(role.name) == wanted for role in roles)
 
 
 async def post_webhook(url: str, payload: dict) -> int:

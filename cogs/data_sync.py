@@ -45,8 +45,12 @@ class DataSyncCog(commands.Cog):
             self.database.put_role(role.id, guild.id, role.name)
 
     def _sync_user_roles(self, member: nextcord.Member):
-        """Syncs roles for a specific member, clearing old ones first for accuracy."""
-        self.database.clear_user_roles(member.id)
+        """
+        Syncs roles for a specific member, clearing old ones first for accuracy.
+        The clear is scoped to this guild — the same user may be on other guilds
+        the bot serves, and their roles there must not be wiped by this sweep.
+        """
+        self.database.clear_user_roles(member.id, member.guild.id)
         for role in member.roles:
             if role.is_default(): # Skip @everyone
                 continue
@@ -100,8 +104,8 @@ class DataSyncCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: nextcord.Member):
-        """Clear roles for a member who left."""
-        await asyncio.to_thread(self.database.clear_user_roles, member.id)
+        """Clear this guild's roles for a member who left (other guilds keep theirs)."""
+        await asyncio.to_thread(self.database.clear_user_roles, member.id, member.guild.id)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: nextcord.Member, after: nextcord.Member):

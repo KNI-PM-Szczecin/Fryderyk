@@ -108,29 +108,51 @@ class RandomReactionCog(commands.Cog):
     The trigger chance is governed by a DynamicProbability instance (held in memory,
     so its accumulated state resets on bot restart), with a higher chance when the bot
     is mentioned and a guaranteed trigger on a magic word. Respects the GIF blacklist.
+
+    The probability state is kept **per guild** — trigger counters, the daily reset
+    and the dry-day boost are what make a GIF show up roughly once a day, and a
+    single shared instance would let a busy guild consume every other guild's GIFs.
     """
     def __init__(self, client, config, database):
         """
-        Initializes the cog and sets up the dynamic GIF-reaction probability:
-        rising base chances per trigger, a premium-hours multiplier, a daily reset,
-        and a boost for consecutive days without a trigger.
+        Initializes the cog. Per-guild DynamicProbability instances are created
+        lazily by _get_prob; the parameters live in _new_probability.
         """
         self.client = client
         self.config = config
         self.database = database
 
-        # Initialization of dynamic probability for GIFs
-        # Chances: first 1/50, after successful hit 1/75, then 1/1000 until the end of the day
-        # Premium hours: from 16:00 to 22:00 for example, give 3.5x higher chance
-        # Counter resets at 4:00 AM
-        
-        self.reaction_prob = DynamicProbability(
+        # guild_id -> DynamicProbability (in memory, so it resets on bot restart)
+        self.reaction_probs = {}
+
+    @staticmethod
+    def _new_probability():
+        """
+        Builds a fresh dynamic GIF-reaction probability: rising base chances per
+        trigger, a premium-hours multiplier, a daily reset, and a boost for
+        consecutive days without a trigger.
+
+        Chances: first 1/50, after a successful hit 1/75, and so on up to 1/500
+        until the daily reset. Premium hours (19:00-23:59) give a 3.5x higher
+        chance. The counter resets at 4:00 AM.
+        """
+        return DynamicProbability(
             base_sequence=[50, 75, 100, 150, 300, 500],
             premium_hours=[19, 20, 21, 22, 23],
             premium_multiplier=3.5,
             reset_hour=4,
             daily_boost_multiplier=1.5
         )
+
+    def _get_prob(self, guild_id):
+        """
+        Returns this guild's probability state, creating it on first use.
+        """
+        prob = self.reaction_probs.get(guild_id)
+        if prob is None:
+            prob = self._new_probability()
+            self.reaction_probs[guild_id] = prob
+        return prob
 
     @commands.Cog.listener()
     async def on_message(self, message: nextcord.Message):
@@ -150,7 +172,8 @@ class RandomReactionCog(commands.Cog):
         has_magic_word = "sam.uel" in message.content.lower()
 
         extra_multiplier = 2.0 if is_mentioned else 1.0
-        if has_magic_word or self.reaction_prob.should_trigger(extra_multiplier=extra_multiplier):
+        prob = self._get_prob(message.guild.id)
+        if has_magic_word or prob.should_trigger(extra_multiplier=extra_multiplier):
             gif_url = random.choice(GIF_LIST)
             await message.reply(gif_url)
 
@@ -163,10 +186,10 @@ class RandomReactionCog(commands.Cog):
         """
         Shows the current GIF-reply probability as a percentage (normal and
         when the bot is mentioned), plus the state driving it (today's trigger
-        count, dry-day boost, premium hours). Read-only — checking the chance
-        does not consume a roll.
+        count, dry-day boost, premium hours) — all for this guild only.
+        Read-only — checking the chance does not consume a roll.
         """
-        prob = self.reaction_prob
+        prob = self._get_prob(interaction.guild.id)
         info = prob.get_chance_breakdown()
         info_mention = prob.get_chance_breakdown(extra_multiplier=2.0)
         chance = info["final_chance"]

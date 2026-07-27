@@ -535,11 +535,24 @@ class Database:
         except Exception as e:
             print(f"[DB ERR] Failed to assign role {role_id} to user {user_id}: {e}")
 
-    def clear_user_roles(self, user_id):
+    def clear_user_roles(self, user_id, guild_id=None):
         """
-        Removes all roles assigned to a specific user.
+        Removes role assignments of a user. Scoped to a single guild when guild_id
+        is given — the bot lives on several guilds and a user's roles from guild A
+        must survive a re-sync triggered by guild B. Only pass guild_id=None when
+        the user really should lose every role everywhere (e.g. row cleanup).
         """
-        self.execute_query("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+        if guild_id is None:
+            self.execute_query("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+            return
+        self.execute_query(
+            """
+            DELETE FROM user_roles
+            WHERE user_id = %s
+              AND role_id IN (SELECT role_id FROM roles WHERE guild_id = %s)
+            """,
+            (user_id, guild_id),
+        )
 
     # --- MESSAGES METHODS ---
     def put_message(self, discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):

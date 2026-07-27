@@ -34,16 +34,14 @@ def main():
 
     baseUtils.Loader(payload)
 
-    operator_role_id = baseUtils.get_operator_role_id()
-
     @client.application_command_check
     def require_operator_role(interaction: nextcord.Interaction) -> bool:
         """
-        Global check: every slash command requires the operator role
-        (OPERATOR_ROLE_ID). Runs before any per-command checks.
+        Global check: every slash command requires the operator role, matched by
+        name (OPERATOR_ROLE_NAME) so the same bot works across guilds. Runs
+        before any per-command checks.
         """
-        roles = getattr(interaction.user, "roles", None) or []
-        return any(role.id == operator_role_id for role in roles)
+        return baseUtils.is_operator(interaction)
 
     @client.event
     async def on_application_command_error(interaction: nextcord.Interaction, error: Exception):
@@ -53,7 +51,10 @@ def main():
         default traceback logging.
         """
         if isinstance(error, nextcord.errors.ApplicationCheckFailure):
-            message = "Ta komenda wymaga roli operatora Fryderyka."
+            message = (
+                f"Ta komenda wymaga roli `{baseUtils.get_operator_role_name()}` "
+                "na tym serwerze."
+            )
             try:
                 if interaction.response.is_done():
                     await interaction.followup.send(message, ephemeral=True)
