@@ -67,7 +67,8 @@ class MessageEventsCog(commands.Cog):
             guild_id=message.guild.id,
             guild_name=message.guild.name,
             category_id=category_id,
-            category_name=category_name
+            category_name=category_name,
+            reply_to_id=DiscordUtils.reply_to_id(message)
         )
 
     @commands.Cog.listener()
@@ -123,5 +124,6 @@ class MessageEventsCog(commands.Cog):
             guild_id=after.guild.id,
             guild_name=after.guild.name,
             category_id=category_id,
-            category_name=category_name
+            category_name=category_name,
+            reply_to_id=DiscordUtils.reply_to_id(after)
         )

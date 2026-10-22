@@ -32,8 +32,23 @@ class MentionTriggerCog(commands.Cog):
         if not message.guild:
             return
 
-        # Only react when the bot is actually mentioned.
-        if not self.client.user or self.client.user not in message.mentions:
+        if not self.client.user:
+            return
+
+        # The message being replied to (if any) — from Discord's resolved payload,
+        # falling back to the message cache. None when deleted or unavailable.
+        replied = None
+        if DiscordUtils.reply_to_id(message):
+            resolved = message.reference.resolved
+            if isinstance(resolved, nextcord.Message):
+                replied = resolved
+            else:
+                replied = message.reference.cached_message
+
+        # React when the bot is mentioned, or when someone replies to the bot
+        # with the reply ping switched off (that is still talking to the bot).
+        replied_to_bot = replied is not None and replied.author.id == self.client.user.id
+        if self.client.user not in message.mentions and not replied_to_bot:
             return
 
         if not self.database.is_module_enabled(message.guild.id, "mention_webhook"):
@@ -53,6 +68,13 @@ class MentionTriggerCog(commands.Cog):
             "user_name": message.author.name,
             "content": parsed_content,
         }
+        if replied is not None:
+            payload["reply_to"] = {
+                "message_id": str(replied.id),
+                "user_id": str(replied.author.id),
+                "user_name": replied.author.name,
+                "content": DiscordUtils.parse_mentions(replied),
+            }
 
         # Which environments to notify is configurable via N8N_MENTION_ENVS
         # (comma-separated, default: production only).

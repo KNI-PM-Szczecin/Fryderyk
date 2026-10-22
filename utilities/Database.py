@@ -279,6 +279,7 @@ class Database:
                 cursor.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ulubione_filmy TEXT")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
+                cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id BIGINT")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
@@ -555,18 +556,19 @@ class Database:
         )
 
     # --- MESSAGES METHODS ---
-    def put_message(self, discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name):
+    def put_message(self, discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name, reply_to_id=None):
         """
-        Inserts a new chat message into the database. If a message with the same discord_id 
-        already exists, the operation is ignored.
+        Inserts a new chat message into the database. If a message with the same discord_id
+        already exists, the operation is ignored. reply_to_id is the discord_id of the
+        message this one replies to (None for non-replies).
         """
         query = """
-        INSERT INTO messages (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO messages (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name, reply_to_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (discord_id) DO NOTHING
         """
         try:
-            self.execute_query(query, (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name))
+            self.execute_query(query, (discord_id, user_id, user_name, message, is_edited, is_bot, date, edit_date, channel_id, channel_name, guild_id, guild_name, category_id, category_name, reply_to_id))
             status = "edited message" if is_edited else "message"
             bot_tag = "[BOT] " if is_bot else ""
             timestamp_str = date.strftime("%Y-%m-%d %H:%M:%S") if date else "Unknown Date"

@@ -145,7 +145,8 @@ class HistoryBackfillCog(commands.Cog):
                         guild_id=guild.id,
                         guild_name=guild.name,
                         category_id=category_id,
-                        category_name=category_name
+                        category_name=category_name,
+                        reply_to_id=DiscordUtils.reply_to_id(message)
                     )
                     per_channel_inserted += 1
                     total_messages += 1

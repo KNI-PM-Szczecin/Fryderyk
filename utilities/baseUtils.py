@@ -2,6 +2,7 @@ import os
 import inspect
 import importlib
 import aiohttp
+import nextcord
 from dotenv import load_dotenv
 
 
@@ -205,6 +206,16 @@ class DiscordUtils:
             _add(embed.thumbnail.url)
 
         return urls
+
+    @staticmethod
+    def reply_to_id(message):
+        """
+        Returns the ID of the message this one replies to, or None when it is not
+        a reply (forwards and crossposts also carry a reference, so check the type).
+        """
+        if message.type == nextcord.MessageType.reply and message.reference:
+            return message.reference.message_id
+        return None
 
     @staticmethod
     def parse_mentions(message):
