@@ -280,6 +280,26 @@ class Database:
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS discord_id BIGINT UNIQUE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id BIGINT")
+
+                # Presence (cogs/presence.py): bot_state is written by n8n ("what the
+                # bot is doing now", expires on its own); presence_lines holds the
+                # status texts and thresholds so they can change without a rebuild.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS bot_state (
+                        key TEXT PRIMARY KEY,
+                        text TEXT NOT NULL,
+                        expires_at TIMESTAMPTZ NOT NULL,
+                        updated_at TIMESTAMPTZ DEFAULT now()
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS presence_lines (
+                        id BIGSERIAL PRIMARY KEY,
+                        kind TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        enabled BOOLEAN DEFAULT TRUE
+                    )
+                ''')
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 

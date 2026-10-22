@@ -16,6 +16,7 @@ MODULES = {
     "speak_up": "Komenda /zabierz_glos",
     "summarize": "Komenda /summarize",
     "profile": "Komenda /profile",
+    "presence": "Dynamiczny status bota (presence)",
 }
 
 # SlashOption choices map display label -> stored key.
