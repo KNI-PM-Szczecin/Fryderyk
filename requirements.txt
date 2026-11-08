@@ -2,3 +2,4 @@ nextcord==3.2.0
 aiohttp
 psycopg2-binary
 python-dotenv
+Pillow==13.0.0

@@ -17,6 +17,7 @@ MODULES = {
     "summarize": "Komenda /summarize",
     "profile": "Komenda /profile",
     "presence": "Dynamiczny status bota (presence)",
+    "meme": "Komenda /mem (memy z szablonów Imgflip)",
 }
 
 # SlashOption choices map display label -> stored key.

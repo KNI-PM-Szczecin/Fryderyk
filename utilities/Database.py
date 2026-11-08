@@ -300,6 +300,29 @@ class Database:
                         enabled BOOLEAN DEFAULT TRUE
                     )
                 ''')
+                # Meme queue (cogs/meme.py): n8n's "Zrób mema" agent tool inserts a
+                # pending row, the bot claims it, renders and posts the image. Rows
+                # stay as an audit trail (status done/failed/expired).
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS meme_requests (
+                        id BIGSERIAL PRIMARY KEY,
+                        guild_id BIGINT NOT NULL,
+                        channel_id BIGINT NOT NULL,
+                        reply_to_message_id BIGINT,
+                        requested_by BIGINT,
+                        template TEXT NOT NULL,
+                        captions JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        error TEXT,
+                        posted_message_id BIGINT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        processed_at TIMESTAMPTZ
+                    )
+                ''')
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS meme_requests_pending_idx "
+                    "ON meme_requests (id) WHERE status = 'pending'"
+                )
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
@@ -788,3 +811,53 @@ class Database:
         Retrieves the complete random GIF reaction blacklist for a specific guild.
         """
         return self.fetch_all("SELECT disabled_id, type FROM gif_blacklist WHERE guild_id = %s", (guild_id,))
+
+    # --- MEME QUEUE METHODS ---
+    def claim_meme_requests(self, limit=5, max_age_minutes=10):
+        """
+        Atomically claims up to `limit` pending meme requests (status -> processing)
+        and returns them as dicts. Requests older than `max_age_minutes` are marked
+        expired instead: a meme showing up long after the conversation moved on is
+        worse than none. SKIP LOCKED keeps two bot instances from double-posting.
+        Needs its own commit, which fetch_all doesn't do.
+        """
+        if not self.connection_pool:
+            return []
+        conn = self.connection_pool.getconn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(
+                    "UPDATE meme_requests SET status = 'expired', processed_at = now() "
+                    "WHERE status = 'pending' AND created_at < now() - (%s * interval '1 minute')",
+                    (max_age_minutes,),
+                )
+                cursor.execute(
+                    """
+                    UPDATE meme_requests SET status = 'processing', processed_at = now()
+                    WHERE id IN (
+                        SELECT id FROM meme_requests WHERE status = 'pending'
+                        ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED
+                    )
+                    RETURNING id, guild_id, channel_id, reply_to_message_id, requested_by,
+                              template, captions, created_at
+                    """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+            conn.commit()
+            return rows
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(f"Error claiming meme requests: {error}")
+            conn.rollback()
+            return []
+        finally:
+            if self.connection_pool:
+                self.connection_pool.putconn(conn)
+
+    def finish_meme_request(self, request_id, status, error=None, posted_message_id=None):
+        """Marks a claimed meme request as done/failed."""
+        self.execute_query(
+            "UPDATE meme_requests SET status = %s, error = %s, posted_message_id = %s, "
+            "processed_at = now() WHERE id = %s",
+            (status, (error or None) and str(error)[:500], posted_message_id, request_id),
+        )

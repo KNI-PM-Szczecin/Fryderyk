@@ -61,6 +61,9 @@ class MentionTriggerCog(commands.Cog):
         parsed_content = DiscordUtils.parse_mentions(message)
 
         payload = {
+            # The triggering message itself, so n8n tools (e.g. "Zrób mema") can
+            # answer it as a Discord reply.
+            "message_id": str(message.id),
             "channel_id": str(message.channel.id),
             "channel_name": getattr(message.channel, "name", None),
             "guild_id": str(message.guild.id),
