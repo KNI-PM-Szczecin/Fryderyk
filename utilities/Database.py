@@ -333,6 +333,12 @@ class Database:
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS source_message_id BIGINT")
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS media_url TEXT")
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS repeat_of BIGINT")
+                # Cards (cogs/cards.py) share the queue too: kind='quote' renders the
+                # message in source_message_id; kind='wrapped' renders a semester summary
+                # for `target` (raw id / nick / 'serwer', resolved by the bot) and
+                # `semester` ('obecny' | 'poprzedni').
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS target TEXT")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS semester TEXT")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
@@ -449,6 +455,31 @@ class Database:
                 return cursor.fetchall()
         except (Exception, psycopg2.DatabaseError) as error:
             print(f"Error fetching data: {error}")
+            return []
+        finally:
+            if self.connection_pool:
+                self.connection_pool.putconn(conn)
+
+    def fetch_all_dict(self, query, params=None, raise_errors=False):
+        """
+        Like fetch_all, but rows are dicts keyed by column name. With raise_errors
+        a failing query raises instead of returning [] (stats code would otherwise
+        silently render all-zero results).
+        """
+        if not self.connection_pool:
+            if raise_errors:
+                raise RuntimeError("no database connection")
+            return []
+        conn = self.connection_pool.getconn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, params)
+                return [dict(r) for r in cursor.fetchall()]
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(f"Error fetching data: {error}")
+            conn.rollback()
+            if raise_errors:
+                raise
             return []
         finally:
             if self.connection_pool:
@@ -823,7 +854,7 @@ class Database:
         return self.fetch_all("SELECT disabled_id, type FROM gif_blacklist WHERE guild_id = %s", (guild_id,))
 
     # --- MEME QUEUE METHODS ---
-    def claim_meme_requests(self, limit=5, max_age_minutes=10):
+    def claim_meme_requests(self, limit=5, max_age_minutes=10, kinds=("image", "gif")):
         """
         Atomically claims up to `limit` pending meme requests (status -> processing)
         and returns them as dicts. Requests older than `max_age_minutes` are marked
@@ -838,21 +869,22 @@ class Database:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(
                     "UPDATE meme_requests SET status = 'expired', processed_at = now() "
-                    "WHERE status = 'pending' AND created_at < now() - (%s * interval '1 minute')",
-                    (max_age_minutes,),
+                    "WHERE status = 'pending' AND kind = ANY(%s) "
+                    "AND created_at < now() - (%s * interval '1 minute')",
+                    (list(kinds), max_age_minutes),
                 )
                 cursor.execute(
                     """
                     UPDATE meme_requests SET status = 'processing', processed_at = now()
                     WHERE id IN (
-                        SELECT id FROM meme_requests WHERE status = 'pending'
+                        SELECT id FROM meme_requests WHERE status = 'pending' AND kind = ANY(%s)
                         ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED
                     )
                     RETURNING id, guild_id, channel_id, reply_to_message_id, requested_by,
                               template, captions, created_at, kind, gif_query,
-                              source_message_id, media_url, repeat_of
+                              source_message_id, media_url, repeat_of, target, semester
                     """,
-                    (limit,),
+                    (list(kinds), limit),
                 )
                 rows = cursor.fetchall()
             conn.commit()
@@ -877,6 +909,6 @@ class Database:
         """One finished meme of this guild (for repeats); None if missing or from another guild."""
         return self.fetch_one_dict(
             "SELECT id, kind, template, captions, gif_query, media_url, source_message_id FROM meme_requests "
-            "WHERE id = %s AND guild_id = %s AND status = 'done'",
+            "WHERE id = %s AND guild_id = %s AND status = 'done' AND kind IN ('image', 'gif')",
             (request_id, guild_id),
         )

@@ -4,3 +4,4 @@ psycopg2-binary
 python-dotenv
 Pillow==13.0.0
 av==19.0.2
+emoji==2.16.0

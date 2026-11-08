@@ -314,7 +314,7 @@ class MemeCog(commands.Cog):
     @tasks.loop(seconds=QUEUE_POLL_S)
     async def process_queue(self):
         try:
-            requests = await asyncio.to_thread(self.database.claim_meme_requests)
+            requests = await asyncio.to_thread(self.database.claim_meme_requests, 5, 10, ("image", "gif"))
         except Exception as e:
             print(f"[meme] queue poll failed: {e}")
             return
