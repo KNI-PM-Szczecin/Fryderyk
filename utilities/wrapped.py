@@ -8,7 +8,9 @@ exercised against the real database with plain psycopg2.
 
 Counting rules:
 - messages: originals only (`NOT is_edited` - edits are logged as new rows),
-  humans only (`NOT is_bot`), one guild, [start, end) in Europe/Warsaw;
+  humans only (`NOT is_bot`), one guild, [start, end) in Europe/Warsaw.
+  Exception: a personal card asked for a bot (Fryderyk's own, %(me)s) also
+  counts that one bot, so it gets ranked among the humans;
 - reactions: events 'reaction' / 'reaction (backfilled)', about = "added <emoji>
   to message id <discord_id>", joined to the message to know its author;
   self-reactions don't count;
@@ -80,7 +82,7 @@ msgs AS (
     SELECT user_id, channel_id, channel_name, date, discord_id, reply_to_id, message
     FROM messages
     WHERE guild_id = %(g)s AND date >= %(s)s AND date < %(e)s
-      AND NOT is_bot AND NOT is_edited
+      AND (NOT is_bot OR user_id = %(me)s) AND NOT is_edited
 )"""
 _REACTS = """
 reacts AS (
@@ -93,7 +95,7 @@ reacts AS (
      AND NOT m.is_edited
     WHERE ev.guild_id = %(g)s AND ev.what IN ('reaction', 'reaction (backfilled)')
       AND ev.date >= %(s)s AND ev.date < %(e)s
-      AND NOT ev.is_bot AND NOT m.is_bot
+      AND NOT ev.is_bot AND (NOT m.is_bot OR m.user_id = %(me)s)
       AND ev.user_id <> m.user_id
 )"""
 
@@ -105,7 +107,7 @@ def _one(rows):
 def user_stats(q, guild_id, user_id, sem: Semester, public_channels=()):
     """public_channels: ids readable by @everyone - only these may show up as
     channel names or quoted text (cards are posted publicly). Counts use all."""
-    p = {"g": guild_id, "u": user_id, "s": sem.start, "e": sem.end, "pub": list(public_channels) or [0]}
+    p = {"g": guild_id, "u": user_id, "me": user_id, "s": sem.start, "e": sem.end, "pub": list(public_channels) or [0]}
     out = {"user_id": user_id, "semester": sem.name}
 
     counts = _one(q(f"""WITH {_MSGS},
@@ -175,7 +177,7 @@ def user_stats(q, guild_id, user_id, sem: Semester, public_channels=()):
         pairs AS (
             SELECT CASE WHEN a.user_id = %(u)s THEN b.user_id ELSE a.user_id END AS other
             FROM msgs a JOIN messages b ON b.discord_id = a.reply_to_id
-            WHERE (a.user_id = %(u)s OR b.user_id = %(u)s) AND a.user_id <> b.user_id AND NOT b.is_bot
+            WHERE (a.user_id = %(u)s OR b.user_id = %(u)s) AND a.user_id <> b.user_id AND (NOT b.is_bot OR b.user_id = %(u)s)
         )
         SELECT other, count(*) AS n FROM pairs GROUP BY other ORDER BY n DESC LIMIT 1""", p))
     out["duo"] = (duo["other"], int(duo["n"])) if duo else None
@@ -191,7 +193,7 @@ def user_stats(q, guild_id, user_id, sem: Semester, public_channels=()):
 
 
 def server_stats(q, guild_id, sem: Semester, public_channels=()):
-    p = {"g": guild_id, "s": sem.start, "e": sem.end, "pub": list(public_channels) or [0]}
+    p = {"g": guild_id, "me": 0, "s": sem.start, "e": sem.end, "pub": list(public_channels) or [0]}
     out = {"semester": sem.name, "noun": sem.noun}
     tot = _one(q(f"""WITH {_MSGS}
         SELECT count(*) AS n, count(DISTINCT user_id) AS users,

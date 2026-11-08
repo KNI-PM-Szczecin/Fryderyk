@@ -100,13 +100,15 @@ class CardsCog(commands.Cog):
             return guild.get_member(int(requested_by)) if requested_by else None, False
         if _norm(raw) in ("serwer", "server", "kolo", "koło", "wszyscy"):
             return None, True
+        if _norm(raw) in ("ty", "ciebie", "siebie", "bot", "fryderyk"):
+            return guild.me, False
         digits = re.sub(r"\D", "", raw)
         if len(digits) >= 15:
             return guild.get_member(int(digits)), False
         key = _norm(raw.lstrip("@"))
         best = None
         for m in guild.members:
-            if m.bot:
+            if m.bot and m.id != guild.me.id:   # Fryderyk may have a card, other bots not
                 continue
             for cand in (m.display_name, m.name, m.global_name):
                 c = _norm(cand)
@@ -158,6 +160,8 @@ class CardsCog(commands.Cog):
             png = await asyncio.to_thread(render_wrapped_server, s, guild.name, icon, names, self.emojis)
             return png, "podsumowanie-serwera.png"
 
+        if member.bot and member.id != guild.me.id:
+            raise ValueError("boty nie mają podsumowań (poza mną)")
         s = await asyncio.to_thread(wrapped.user_stats, self._q, guild.id, member.id, sem, public)
         if not s["messages"]:
             raise ValueError(f"{member.display_name} nic nie napisał(a) {what}")
@@ -238,8 +242,6 @@ class CardsCog(commands.Cog):
         module = "quote" if req["kind"] == "quote" else "wrapped"
         if not self.database.is_module_enabled(guild_id, module):
             return "failed", "module disabled", None
-        if self.agent_cooldown.get_retry_after(guild_id) is not None:
-            return "failed", "rate limited", None
         channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
         guild = getattr(channel, "guild", None)
         if getattr(guild, "id", None) != guild_id:
@@ -256,6 +258,10 @@ class CardsCog(commands.Cog):
         async def visible_fail(why, note):
             await channel.send(f"({note})", reference=reference, allowed_mentions=no_pings)
             return "failed", why, None
+
+        retry = self.agent_cooldown.get_retry_after(guild_id)
+        if retry is not None:
+            return await visible_fail("rate limited", f"za dużo kart naraz, poproś ponownie za {max(1, round(retry))} s")
 
         try:
             if req["kind"] == "quote":
