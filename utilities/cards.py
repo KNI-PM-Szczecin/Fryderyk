@@ -389,6 +389,51 @@ def _hour_chart(img, box, hours, accent):
         d.text((bx, base - bh - 10), f"{ph}:00", font=_font(LATO_BOLD, 22), fill=FG, anchor="mb")
 
 
+MONTH_CHART_H = 290
+MONTHS_SHORT = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
+
+
+def _month_chart(img, box, title, months, accent):
+    """Messages per month over the whole history: one series, one hue, thin
+    bars on a shared baseline, years marked under the axis, peak labelled."""
+    x0, y0, x1, y1 = box
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle(box, radius=22, fill=CARD)
+    pad = 28
+    d.text((x0 + pad, y0 + 24), title.upper(), font=_font(LATO_BOLD, 22), fill=MUTED)
+    top, base = y0 + 100, y1 - 56
+    left, right = x0 + pad, x1 - pad
+    values = [n for _, n in months]
+    peak = max(values) if any(values) else 0
+    slot = (right - left) / max(1, len(months))
+    bw = max(3, min(28, slot - 2))
+    color = _readable(accent)
+    d.line((left, base, right, base), fill=(70, 72, 80), width=2)
+    small = _font(LATO, 20)
+    last_label_end = -1
+    for i, (m, n) in enumerate(months):
+        bx = left + i * slot + (slot - bw) / 2
+        if n and peak:
+            bh = max(4, (base - top) * n / peak)
+            d.rounded_rectangle((bx, base - bh, bx + bw, base), radius=min(4, bw / 2), fill=color)
+            d.rectangle((bx, base - min(bh, 4), bx + bw, base), fill=color)
+        if i == 0 or m.month == 1:
+            label = f"{MONTHS_SHORT[m.month - 1]} {m.year}" if i == 0 else str(m.year)
+            lx = max(left, bx)
+            if lx > last_label_end + 12:
+                d.text((lx, base + 12), label, font=small, fill=MUTED)
+                last_label_end = lx + small.getlength(label)
+    if peak:
+        i = values.index(peak)
+        m = months[i][0]
+        cx = left + i * slot + slot / 2
+        label = f"{MONTHS_SHORT[m.month - 1]} {m.year} · {fmt_int(peak)}"
+        f = _font(LATO_BOLD, 22)
+        w = f.getlength(label)
+        lx = min(max(cx - w / 2, left), right - w)
+        d.text((lx, top - 12), label, font=f, fill=FG, anchor="lb")
+
+
 def _best_message(img, box, title, text, footer, emojis, accent):
     x0, y0, x1, y1 = box
     d = ImageDraw.Draw(img)
@@ -410,6 +455,12 @@ def _header(img, W, PAD, accent, semester, right_text=None):
         d.text((W - PAD, PAD + 4), right_text, font=_font(LATO, 24), fill=MUTED, anchor="ra")
 
 
+def _voice_note(s):
+    """Voice logging started 2026-05-29; say so when the window reaches further back."""
+    v = s.get("voice_since")
+    return f" · od {v.day}.{v.month:02d}.{v.year}" if v else ""
+
+
 # --- personal card ---
 
 def render_wrapped_user(s, name, avatar_bytes, names, emojis=None, guild_name=""):
@@ -420,9 +471,10 @@ def render_wrapped_user(s, name, avatar_bytes, names, emojis=None, guild_name=""
     W, PAD, GAP = 1080, 60, 22
     accent = accent_from(avatar_bytes)
     best = s.get("best_message")
+    months = s.get("months")
     th = 196
-    # header+who 292, hero 210, tiles 3 rows, hour chart 230; best-message box 280
-    base = PAD + 120 + 172 + 210 + 3 * (th + GAP) + 230 + GAP
+    # header+who 292, hero 210, tiles 3 rows, hour chart 230 (+ month chart 230 for all-time); best-message box 280
+    base = PAD + 120 + 172 + 210 + 3 * (th + GAP) + 230 + GAP + ((MONTH_CHART_H + GAP) if months else 0)
     H = base + (280 + PAD if best else PAD - GAP)
     img = _bg(W, H, accent)
     _header(img, W, PAD, accent, s["semester"] + (f" · {sanitize(guild_name)}" if guild_name else ""))
@@ -449,7 +501,7 @@ def render_wrapped_user(s, name, avatar_bytes, names, emojis=None, guild_name=""
     d.text((PAD, y), fmt_int(s["messages"]), font=_font(ANTON, 150), fill=FG)
     hero_w = _font(ANTON, 150).getlength(fmt_int(s["messages"]))
     d.text((PAD + hero_w + 24, y + 42), "wiadomości", font=_font(LATO_BLACK, 40), fill=FG)
-    rank = f"#{s['rank']} z {s['total_users']} osób · {round(s['share'] * 100)}% serwera" if s.get("rank") else "w tym semestrze"
+    rank = f"#{s['rank']} z {s['total_users']} osób · {round(s['share'] * 100)}% serwera" if s.get("rank") else "w tym okresie"
     d.text((PAD + hero_w + 24, y + 98), rank, font=_font(LATO, 26), fill=MUTED)
 
     # tiles 2 x 3
@@ -460,7 +512,7 @@ def render_wrapped_user(s, name, avatar_bytes, names, emojis=None, guild_name=""
     tiles = [
         ("Dni aktywności", str(s["active_days"]), f"najdłuższa seria: {s['streak']} dni"),
         ("Voice", fmt_hours(s["voice_hours"]) if s["voice_hours"] else "—",
-         f"#{s['voice_rank']} na serwerze" if s.get("voice_rank") else "brak sesji"),
+         (f"#{s['voice_rank']} na serwerze" if s.get("voice_rank") else "brak sesji") + _voice_note(s)),
         ("Reakcje", fmt_int(s["reactions_received"]), f"otrzymane · {fmt_int(s['reactions_given'])} rozdanych"),
         ("Ulubiony kanał", "#" + s["top_channel"][0].split("┃")[-1] if s.get("top_channel") else "—",
          f"{fmt_int(s['top_channel'][1])} wiadomości" if s.get("top_channel") else ""),
@@ -477,6 +529,9 @@ def render_wrapped_user(s, name, avatar_bytes, names, emojis=None, guild_name=""
               value_font=LATO_BLACK if text_value else ANTON, value_size=size)
     y += 3 * (th + GAP)
 
+    if months:
+        _month_chart(img, (PAD, y, W - PAD, y + MONTH_CHART_H), "Twoja aktywność w czasie", months, accent)
+        y += MONTH_CHART_H + GAP
     _hour_chart(img, (PAD, y, W - PAD, y + 230), s["hours"], accent)
     y += 230 + GAP
 
@@ -494,9 +549,14 @@ def render_wrapped_server(s, guild_name, icon_bytes, names, emojis=None):
     W, PAD, GAP = 1080, 60, 22
     accent = accent_from(icon_bytes)
     best = s.get("best_message")
+    first = s.get("first_message")
+    months = s.get("months")
+    noun = s.get("noun", "semestru")
     th = 196
     box_h = 70 + 58 * max(1, len(s["top_talkers"])) + 20
     base = PAD + 120 + 172 + 210 + box_h + GAP + 3 * (th + GAP)
+    base += (MONTH_CHART_H + GAP) if months else 0
+    base += (210 + GAP) if first else 0
     H = base + (280 + PAD if best else PAD - GAP)
     img = _bg(W, H, accent)
     _header(img, W, PAD, accent, s["semester"])
@@ -534,6 +594,10 @@ def render_wrapped_server(s, guild_name, icon_bytes, names, emojis=None):
         d.text((bar_l + bw + 12, ry + 18), fmt_int(n), font=_font(LATO, 24), fill=MUTED, anchor="lm")
     y += box_h + GAP
 
+    if months:
+        _month_chart(img, (PAD, y, W - PAD, y + MONTH_CHART_H), "Aktywność miesiąc po miesiącu", months, accent)
+        y += MONTH_CHART_H + GAP
+
     cw = (W - 2 * PAD - GAP) / 2
     bd = s.get("busiest_day")
     tv = s.get("top_voice") or []
@@ -541,9 +605,9 @@ def render_wrapped_server(s, guild_name, icon_bytes, names, emojis=None):
     chans = s.get("top_channels") or []
     tiles = [
         ("Voice razem", fmt_hours(s["voice_hours"]) if s["voice_hours"] else "—",
-         f"najdłużej: {names.get(tv[0][0], '?')} ({fmt_hours(tv[0][1])})" if tv else ""),
-        ("Najgłośniejszy dzień", pl_date(bd[0]).rsplit(" ", 1)[0] if bd else "—", f"{fmt_int(bd[1])} wiadomości" if bd else ""),
-        ("Kanał semestru", "#" + chans[0][0].split("┃")[-1] if chans else "—", f"{fmt_int(chans[0][1])} wiadomości" if chans else ""),
+         (f"{names.get(tv[0][0], '?')}: {fmt_hours(tv[0][1])}" if tv else "") + _voice_note(s)),
+        ("Najgłośniejszy dzień", (pl_date(bd[0]) if months else pl_date(bd[0]).rsplit(" ", 1)[0]) if bd else "—", f"{fmt_int(bd[1])} wiadomości" if bd else ""),
+        (f"Kanał {noun}", "#" + chans[0][0].split("┃")[-1] if chans else "—", f"{fmt_int(chans[0][1])} wiadomości" if chans else ""),
         ("Nocny Marek", names.get(owl[0], "?") if owl else "—", f"{round(owl[1] * 100)}% wiadomości między 0 a 5" if owl else "nikt nie pisze w nocy"),
         ("Ulubione reakcje", "  ".join(e for e, _ in (s.get("top_emoji") or [])[:4]) or "—",
          " · ".join(fmt_int(n) for _, n in (s.get("top_emoji") or [])[:4])),
@@ -552,15 +616,22 @@ def render_wrapped_server(s, guild_name, icon_bytes, names, emojis=None):
     for i, (label, value, sub) in enumerate(tiles):
         cx = PAD + (i % 2) * (cw + GAP)
         cy = y + (i // 2) * (th + GAP)
-        text_value = label in ("Kanał semestru", "Nocny Marek", "Najgłośniejszy dzień")
+        text_value = label in (f"Kanał {noun}", "Nocny Marek", "Najgłośniejszy dzień")
         size = 40 if label == "Ulubione reakcje" else (44 if text_value else 58)
         _tile(img, (cx, cy, cx + cw, cy + th), label, value, sub, emojis,
               value_font=LATO_BLACK if text_value else ANTON, value_size=size)
     y += 3 * (th + GAP)
 
+    if first:
+        _best_message(img, (PAD, y, W - PAD, y + 210), "Pierwsza wiadomość",
+                      clean_text(first["message"], limit=160),
+                      f"{names.get(first['user_id'], '?')} · {pl_date(first['date'])} · #{first['channel_name'].split('┃')[-1]}",
+                      emojis, accent)
+        y += 210 + GAP
+
     if best:
         _best_message(img, (PAD, y, W - PAD, H - PAD),
-                      f"Wiadomość semestru · {best['n']} os. zareagowało",
+                      f"Wiadomość {noun} · {best['n']} os. zareagowało",
                       clean_text(best["message"]),
                       f"{names.get(best['author'], '?')} · {pl_date(best['msg_date'])} · #{best['channel_name'].split('┃')[-1]}",
                       emojis, accent)

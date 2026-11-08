@@ -19,7 +19,7 @@ MODULES = {
     "presence": "Dynamiczny status bota (presence)",
     "meme": "Memy: /mem, /gif, „Podpisz GIF-a” i memy od agenta",
     "quote": "Karty z cytatami („Zacytuj”, „@Fryderyk zacytuj to”)",
-    "wrapped": "Podsumowanie semestru (karty statystyk)",
+    "wrapped": "Podsumowania semestru i całej historii (karty statystyk)",
 }
 
 # SlashOption choices map display label -> stored key.

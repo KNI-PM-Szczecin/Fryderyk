@@ -336,7 +336,7 @@ class Database:
                 # Cards (cogs/cards.py) share the queue too: kind='quote' renders the
                 # message in source_message_id; kind='wrapped' renders a semester summary
                 # for `target` (raw id / nick / 'serwer', resolved by the bot) and
-                # `semester` ('obecny' | 'poprzedni').
+                # `semester` ('obecny' | 'poprzedni' | 'calosc' = whole history).
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS target TEXT")
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS semester TEXT")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")

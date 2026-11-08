@@ -1,5 +1,5 @@
 """
-Semester summary ("KNI Wrapped") statistics, computed from what the bot already
+Semester / all-time summary ("KNI Wrapped") statistics, computed from what the bot already
 logs: messages, voice sessions and reaction events.
 
 Pure data layer - no Discord, no drawing. Every function takes `q(sql, params)`
@@ -27,6 +27,8 @@ class Semester:
     name: str
     start: datetime
     end: datetime   # exclusive
+    noun: str = "semestru"   # genitive for labels: "Gaduła semestru", "Kanał wszech czasów"
+    all_time: bool = False
 
 
 def semester_for(day: date) -> Semester:
@@ -44,6 +46,32 @@ def semester_for(day: date) -> Semester:
 
 def previous_semester(sem: Semester) -> Semester:
     return semester_for((sem.start - timedelta(days=1)).date())
+
+
+def all_time(since: datetime, now: datetime) -> Semester:
+    """The whole history of a server: from its creation until now."""
+    since, now = since.astimezone(TZ), now.astimezone(TZ)
+    years = str(since.year) if since.year == now.year else f"{since.year}–{now.year}"
+    return Semester(f"Od początku serwera · {years}", since, now + timedelta(days=1), "wszech czasów", True)
+
+
+def _months(q, sql, p, sem: Semester):
+    """[(first day of month, n)] for every month of the window, gaps filled with 0."""
+    got = {r["m"]: int(r["n"]) for r in q(sql, p)}
+    first = sem.start.date().replace(day=1)
+    last = (min(sem.end, datetime.now(TZ)) - timedelta(seconds=1)).date().replace(day=1)
+    out, m = [], first
+    while m <= last:
+        out.append((m, got.get(m, 0)))
+        m = (m + timedelta(days=32)).replace(day=1)
+    return out
+
+
+def _voice_since(q, p):
+    """When voice logging actually starts inside the window (it began 2026-05-29)."""
+    r = _one(q("""SELECT min(date_join) AS d FROM voice
+        WHERE guild_id = %(g)s AND date_join >= %(s)s AND date_join < %(e)s""", p))
+    return r["d"].astimezone(TZ).date() if r and r.get("d") else None
 
 
 # Shared CTEs. %(g)s guild, %(s)s/%(e)s window.
@@ -152,13 +180,19 @@ def user_stats(q, guild_id, user_id, sem: Semester, public_channels=()):
         SELECT other, count(*) AS n FROM pairs GROUP BY other ORDER BY n DESC LIMIT 1""", p))
     out["duo"] = (duo["other"], int(duo["n"])) if duo else None
 
+    if sem.all_time:
+        out["months"] = _months(q, f"""WITH {_MSGS}
+            SELECT date_trunc('month', date AT TIME ZONE 'Europe/Warsaw')::date AS m, count(*) AS n
+            FROM msgs WHERE user_id = %(u)s GROUP BY m""", p, sem)
+        out["voice_since"] = _voice_since(q, p)
+    out["noun"] = sem.noun
     out["titles"] = titles(out)
     return out
 
 
 def server_stats(q, guild_id, sem: Semester, public_channels=()):
     p = {"g": guild_id, "s": sem.start, "e": sem.end, "pub": list(public_channels) or [0]}
-    out = {"semester": sem.name}
+    out = {"semester": sem.name, "noun": sem.noun}
     tot = _one(q(f"""WITH {_MSGS}
         SELECT count(*) AS n, count(DISTINCT user_id) AS users,
                count(DISTINCT (date AT TIME ZONE 'Europe/Warsaw')::date) AS days FROM msgs""", p)) or {}
@@ -197,6 +231,17 @@ def server_stats(q, guild_id, sem: Semester, public_channels=()):
         SELECT user_id, avg((extract(hour FROM date AT TIME ZONE 'Europe/Warsaw') < 5)::int) AS night, count(*) AS n
         FROM msgs GROUP BY user_id HAVING count(*) >= 50 ORDER BY night DESC LIMIT 1""", p))
     out["night_owl"] = (owl["user_id"], float(owl["night"])) if owl and float(owl["night"]) >= 0.15 else None
+
+    if sem.all_time:
+        out["months"] = _months(q, f"""WITH {_MSGS}
+            SELECT date_trunc('month', date AT TIME ZONE 'Europe/Warsaw')::date AS m, count(*) AS n
+            FROM msgs GROUP BY m""", p, sem)
+        out["voice_since"] = _voice_since(q, p)
+        first = _one(q(f"""WITH {_MSGS}
+            SELECT user_id, message, channel_name, date FROM msgs
+            WHERE channel_id = ANY(%(pub)s) AND coalesce(message, '') <> ''
+            ORDER BY date LIMIT 1""", p))
+        out["first_message"] = dict(first) if first else None
     return out
 
 
@@ -204,7 +249,7 @@ def titles(s):
     """1-3 fun labels derived from the numbers, most specific first."""
     t = []
     if s.get("rank") == 1:
-        t.append("Gaduła semestru")
+        t.append(f"Gaduła {s.get('noun', 'semestru')}")
     elif s.get("rank") and s["rank"] <= 3:
         t.append(f"Podium gadania (#{s['rank']})")
     if s.get("night_share", 0) >= 0.25 and s.get("messages", 0) >= 30:

@@ -32,9 +32,10 @@ class CardsCog(commands.Cog):
     * quote cards - the REAL text of a Discord message (never LLM-written) with
       the author's avatar: "Zacytuj" message context menu, or the agent's
       "Zrób cytat" tool ("@Fryderyk zacytuj to" in reply to a message);
-    * semester summary ("Wrapped") - personal or server stats from the logs
-      (utilities/wrapped.py): /podsumowanie, or the agent's
-      "Podsumowanie semestru" tool. Anyone may see anyone's card (owner's call).
+    * semester / all-time summary ("Wrapped") - personal or server stats from
+      the logs (utilities/wrapped.py): /podsumowanie, or the agent's
+      "Podsumowanie semestru" tool. "calosc" = since the server was created.
+      Anyone may see anyone's card (owner's call).
 
     Agent requests arrive through meme_requests (kind 'quote' / 'wrapped'); this
     cog only claims those kinds, MemeCog claims image/gif. Channel names and
@@ -128,28 +129,38 @@ class CardsCog(commands.Cog):
         await self.emojis.prefetch([text, message.author.display_name])
         return await asyncio.to_thread(render_quote, text, message.author.display_name, avatar, footer, self.emojis)
 
-    async def build_wrapped(self, guild, member, previous=False):
+    @staticmethod
+    def _period(guild, period):
+        """'obecny' | 'poprzedni' | 'calosc' (whole history since the server was created)."""
+        now = datetime.now(TZ)
+        if period == "calosc":
+            return wrapped.all_time(guild.created_at, now)
+        sem = wrapped.semester_for(now.date())
+        return wrapped.previous_semester(sem) if period == "poprzedni" else sem
+
+    async def build_wrapped(self, guild, member, period="obecny"):
         """member None -> server card. Returns (png bytes, filename)."""
-        sem = wrapped.semester_for(datetime.now(TZ).date())
-        if previous:
-            sem = wrapped.previous_semester(sem)
+        sem = self._period(guild, period)
+        what = "w historii serwera" if sem.all_time else f"w semestrze „{sem.name}”"
         public = self._public_channel_ids(guild)
         if member is None:
             s = await asyncio.to_thread(wrapped.server_stats, self._q, guild.id, sem, public)
             if not s["messages"]:
-                raise ValueError(f"w semestrze „{sem.name}” nie ma jeszcze żadnych wiadomości")
+                raise ValueError(f"{what} nie ma jeszcze żadnych wiadomości")
             ids = [u for u, _ in s["top_talkers"]] + [u for u, _ in s["top_voice"]]
             ids += [s["night_owl"][0]] if s.get("night_owl") else []
             ids += [s["best_message"]["author"]] if s.get("best_message") else []
+            ids += [s["first_message"]["user_id"]] if s.get("first_message") else []
             names = await asyncio.to_thread(self._names, guild, ids)
-            await self.emojis.prefetch([e for e, _ in s["top_emoji"]] + [(s.get("best_message") or {}).get("message")] + list(names.values()))
+            await self.emojis.prefetch([e for e, _ in s["top_emoji"]] + [(s.get("best_message") or {}).get("message"),
+                                       (s.get("first_message") or {}).get("message")] + list(names.values()))
             icon = await self._read(guild.icon)
             png = await asyncio.to_thread(render_wrapped_server, s, guild.name, icon, names, self.emojis)
             return png, "podsumowanie-serwera.png"
 
         s = await asyncio.to_thread(wrapped.user_stats, self._q, guild.id, member.id, sem, public)
         if not s["messages"]:
-            raise ValueError(f"{member.display_name} nic nie napisał(a) w semestrze „{sem.name}”")
+            raise ValueError(f"{member.display_name} nic nie napisał(a) {what}")
         names = await asyncio.to_thread(self._names, guild, [s["duo"][0]] if s.get("duo") else [])
         await self.emojis.prefetch([e for e, _ in s["top_emoji_received"]] + [(s.get("best_message") or {}).get("message"), member.display_name] + list(names.values()))
         avatar = await self._read(member.display_avatar)
@@ -182,22 +193,23 @@ class CardsCog(commands.Cog):
 
     @nextcord.slash_command(
         name="podsumowanie",
-        description="Podsumowanie semestru: osoby albo całego serwera",
+        description="Podsumowanie semestru albo całej historii: osoby lub całego serwera",
         contexts=[nextcord.InteractionContextType.guild],
     )
     async def podsumowanie(
         self,
         interaction: Interaction,
         kto: nextcord.Member = SlashOption(name="kto", description="Czyje podsumowanie (puste = całego serwera)", required=False, default=None),
-        semestr: str = SlashOption(name="semestr", description="Który semestr", required=False, default="obecny",
-                                   choices={"Obecny": "obecny", "Poprzedni": "poprzedni"}),
+        semestr: str = SlashOption(name="semestr", description="Który okres", required=False, default="obecny",
+                                   choices={"Obecny semestr": "obecny", "Poprzedni semestr": "poprzedni",
+                                            "Od początku serwera": "calosc"}),
     ):
         if not self.database.is_module_enabled(interaction.guild.id, "wrapped"):
             await interaction.response.send_message("Moduł `wrapped` jest wyłączony (zobacz `/moduly status`).", ephemeral=True)
             return
         await interaction.response.defer()
         try:
-            png, name = await self.build_wrapped(interaction.guild, kto, previous=(semestr == "poprzedni"))
+            png, name = await self.build_wrapped(interaction.guild, kto, semestr)
         except Exception as e:
             await interaction.followup.send(f"Nie udało się: {e}")
             return
@@ -258,7 +270,7 @@ class CardsCog(commands.Cog):
                 member, server = self._resolve_member(guild, req.get("target"), req.get("requested_by"))
                 if member is None and not server:
                     return await visible_fail("unknown member", f"nie wiem, kto to „{str(req.get('target'))[:40]}”")
-                png, filename = await self.build_wrapped(guild, member, previous=(req.get("semester") == "poprzedni"))
+                png, filename = await self.build_wrapped(guild, member, req.get("semester") or "obecny")
         except ValueError as e:
             return await visible_fail("nothing to show", str(e))
 
