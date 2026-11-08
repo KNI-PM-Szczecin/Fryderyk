@@ -10,10 +10,12 @@ from nextcord.ext import commands, tasks
 
 from decorators.cooldown import CogSharedCooldown
 from utilities import wrapped
-from utilities.cards import EmojiStore, clean_text, pl_date, render_quote, render_wrapped_server, render_wrapped_user
+from utilities.cards import (EmojiStore, clean_text, pl_date, render_leaderboard, render_quote,
+                             render_wrapped_server, render_wrapped_user)
 
 QUEUE_POLL_S = 3
-KINDS = ("quote", "wrapped")
+KINDS = ("quote", "wrapped", "ranking")
+TOP_DEFAULT, TOP_MAX = 15, 30
 TZ = ZoneInfo("Europe/Warsaw")
 
 
@@ -32,12 +34,14 @@ class CardsCog(commands.Cog):
     * quote cards - the REAL text of a Discord message (never LLM-written) with
       the author's avatar: "Zacytuj" message context menu, or the agent's
       "Zrób cytat" tool ("@Fryderyk zacytuj to" in reply to a message);
+    * long ranking ("topka", up to 30 people) by messages / voice / reactions:
+      /ranking, or the agent's "Ranking" tool;
     * semester / all-time summary ("Wrapped") - personal or server stats from
       the logs (utilities/wrapped.py): /podsumowanie, or the agent's
       "Podsumowanie semestru" tool. "calosc" = since the server was created.
       Anyone may see anyone's card (owner's call).
 
-    Agent requests arrive through meme_requests (kind 'quote' / 'wrapped'); this
+    Agent requests arrive through meme_requests (kind 'quote' / 'wrapped' / 'ranking'); this
     cog only claims those kinds, MemeCog claims image/gif. Channel names and
     quoted text in summaries come only from channels @everyone can read, since
     the cards are posted publicly. Gated by modules `quote` and `wrapped`.
@@ -171,6 +175,26 @@ class CardsCog(commands.Cog):
         png = await asyncio.to_thread(render_wrapped_user, s, member.display_name, avatar, names, self.emojis, guild.name)
         return png, "podsumowanie.png"
 
+    async def build_ranking(self, guild, metric="wiadomosci", period="obecny", limit=TOP_DEFAULT, me_id=None):
+        """Long leaderboard card ("topka"), humans only. Returns png bytes."""
+        sem = self._period(guild, period)
+        metric = metric if metric in wrapped.METRICS else "wiadomosci"
+        limit = max(3, min(TOP_MAX, int(limit or TOP_DEFAULT)))
+        lb = await asyncio.to_thread(wrapped.leaderboard, self._q, guild.id, sem, metric, limit, me_id)
+        if not lb["rows"]:
+            raise ValueError("w tym okresie nie ma jeszcze czego rankować")
+        ids = [u for _, u, _ in lb["rows"]] + ([lb["mine"][1]] if lb.get("mine") else [])
+        names = await asyncio.to_thread(self._names, guild, ids)
+
+        async def avatar(uid):
+            m = guild.get_member(uid)
+            return uid, (await self._read(m.display_avatar, 64) if m else None)
+        avatars = dict(await asyncio.gather(*(avatar(u) for u in ids)))
+        await self.emojis.prefetch(list(names.values()))
+        icon = await self._read(guild.icon)
+        return await asyncio.to_thread(render_leaderboard, lb, guild.name, icon, names, avatars,
+                                       int(me_id) if me_id else None, self.emojis)
+
     # --- operator entry points ---
 
     @nextcord.message_command(name="Zacytuj", contexts=[nextcord.InteractionContextType.guild])
@@ -219,6 +243,33 @@ class CardsCog(commands.Cog):
             return
         await interaction.followup.send(file=nextcord.File(io.BytesIO(png), filename=name))
 
+    @nextcord.slash_command(
+        name="ranking",
+        description="Dłuższa topka serwera: wiadomości, voice albo reakcje",
+        contexts=[nextcord.InteractionContextType.guild],
+    )
+    async def ranking(
+        self,
+        interaction: Interaction,
+        wedlug: str = SlashOption(name="wedlug", description="Po czym liczyć", required=False, default="wiadomosci",
+                                  choices={"Wiadomości": "wiadomosci", "Voice": "voice", "Otrzymane reakcje": "reakcje"}),
+        ile: int = SlashOption(name="ile", description=f"Ile osób (3–{TOP_MAX}, domyślnie {TOP_DEFAULT})",
+                               required=False, default=TOP_DEFAULT, min_value=3, max_value=TOP_MAX),
+        semestr: str = SlashOption(name="semestr", description="Który okres", required=False, default="obecny",
+                                   choices={"Obecny semestr": "obecny", "Poprzedni semestr": "poprzedni",
+                                            "Od początku serwera": "calosc"}),
+    ):
+        if not self.database.is_module_enabled(interaction.guild.id, "wrapped"):
+            await interaction.response.send_message("Moduł `wrapped` jest wyłączony (zobacz `/moduly status`).", ephemeral=True)
+            return
+        await interaction.response.defer()
+        try:
+            png = await self.build_ranking(interaction.guild, wedlug, semestr, ile, interaction.user.id)
+        except Exception as e:
+            await interaction.followup.send(f"Nie udało się: {e}")
+            return
+        await interaction.followup.send(file=nextcord.File(io.BytesIO(png), filename="ranking.png"))
+
     # --- agent queue ---
 
     @tasks.loop(seconds=QUEUE_POLL_S)
@@ -264,7 +315,11 @@ class CardsCog(commands.Cog):
             return await visible_fail("rate limited", f"za dużo kart naraz, poproś ponownie za {max(1, round(retry))} s")
 
         try:
-            if req["kind"] == "quote":
+            if req["kind"] == "ranking":
+                png, filename = await self.build_ranking(
+                    guild, req.get("metric") or "wiadomosci", req.get("semester") or "obecny",
+                    req.get("top_n") or TOP_DEFAULT, req.get("requested_by")), "ranking.png"
+            elif req["kind"] == "quote":
                 if not req.get("source_message_id"):
                     return await visible_fail("no source", "odpowiedz na wiadomość, którą mam zacytować")
                 try:

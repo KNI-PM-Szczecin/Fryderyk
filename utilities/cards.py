@@ -1,6 +1,6 @@
 """
 Image cards drawn with Pillow: quote cards ("@Fryderyk zacytuj to") and the
-semester summary ("Wrapped") cards.
+semester summary ("Wrapped") cards and the long ranking ("topka").
 
 Text may contain Unicode emoji and Discord custom emoji (<:name:id>), which no
 text font can draw, so text is split into runs and emoji are pasted as images
@@ -447,9 +447,9 @@ def _best_message(img, box, title, text, footer, emojis, accent):
     d.text((x0 + pad, y1 - 48), footer, font=_font(LATO, 22), fill=MUTED)
 
 
-def _header(img, W, PAD, accent, semester, right_text=None):
+def _header(img, W, PAD, accent, semester, right_text=None, title="WRAPPED"):
     d = ImageDraw.Draw(img)
-    d.text((PAD, PAD - 6), "WRAPPED", font=_font(ANTON, 44), fill=_readable(accent))
+    d.text((PAD, PAD - 6), title, font=_font(ANTON, 44), fill=_readable(accent))
     d.text((PAD, PAD + 52), semester, font=_font(LATO_BOLD, 26), fill=MUTED)
     if right_text:
         d.text((W - PAD, PAD + 4), right_text, font=_font(LATO, 24), fill=MUTED, anchor="ra")
@@ -635,4 +635,87 @@ def render_wrapped_server(s, guild_name, icon_bytes, names, emojis=None):
                       clean_text(best["message"]),
                       f"{names.get(best['author'], '?')} · {pl_date(best['msg_date'])} · #{best['channel_name'].split('┃')[-1]}",
                       emojis, accent)
+    return _to_png(img)
+
+
+# --- long ranking ("topka") ---
+
+RANK_TITLES = {
+    "wiadomosci": "Najwięcej wiadomości",
+    "voice": "Najwięcej godzin na voice",
+    "reakcje": "Najwięcej otrzymanych reakcji",
+}
+
+
+def _fmt_metric(metric, v):
+    return fmt_hours(v) if metric == "voice" else fmt_int(v)
+
+
+def render_leaderboard(lb, guild_name, icon_bytes, names, avatars, me_id=None, emojis=None):
+    """
+    lb: utilities.wrapped.leaderboard() dict; names/avatars: user_id -> display
+    name / avatar bytes. One row per person: rank, avatar, name, a thin bar
+    (one series, one hue, scaled to #1) and the value as a direct label. The
+    requester's row is highlighted; if they are outside the top, their row is
+    appended after a gap. Returns PNG bytes, 1080 wide.
+    """
+    W, PAD, GAP = 1080, 60, 22
+    ROW = 62
+    accent = accent_from(icon_bytes)
+    color = _readable(accent)
+    rows, mine, metric = lb["rows"], lb.get("mine"), lb["metric"]
+    n_rows = len(rows) + (1 if mine else 0)
+    list_h = 84 + ROW * n_rows + (30 if mine else 0) + 8
+    H = PAD + 120 + 120 + list_h + 50 + PAD
+    img = _bg(W, H, accent)
+    _header(img, W, PAD, accent, lb["period"], title="RANKING")
+    d = ImageDraw.Draw(img)
+
+    y = PAD + 120
+    icon = circle_avatar(icon_bytes, 88, guild_name)
+    img.paste(icon, (PAD, y), icon)
+    tf, tl, th = fit_text(RANK_TITLES.get(metric, ""), LATO_BLACK, W - 2 * PAD - 116, 60, start=46, minimum=28)
+    draw_lines(img, tl[:1], tf, th, PAD + 116, y + 2, W - 2 * PAD - 116, FG, emojis)
+    d.text((PAD + 116, y + 62), sanitize(guild_name), font=_font(LATO, 26), fill=MUTED)
+
+    y += 120
+    box = (PAD, y, W - PAD, y + list_h)
+    d.rounded_rectangle(box, radius=22, fill=CARD)
+    d.text((PAD + 28, y + 24), f"TOP {len(rows)} Z {lb['total']} OSÓB", font=_font(LATO_BOLD, 22), fill=MUTED)
+    top = rows[0][2] if rows and rows[0][2] else 1
+    rank_w, av_s, name_w = 64, 40, 290
+    name_x = PAD + 28 + rank_w + av_s + 16
+    bar_l, bar_r = name_x + name_w + 16, W - PAD - 150
+    rf, nf, vf = _font(ANTON, 30), _font(LATO_BOLD, 27), _font(LATO, 24)
+
+    def row(ry, rank, uid, val):
+        if uid == me_id:
+            d.rounded_rectangle((PAD + 12, ry - 6, W - PAD - 12, ry + ROW - 12), radius=14, fill=(48, 50, 57))
+        cy = ry + (ROW - 12) / 2 - 3
+        d.text((PAD + 28 + rank_w - 14, cy), str(rank), font=rf, fill=FG if rank <= 3 else MUTED, anchor="rm")
+        av = circle_avatar(avatars.get(uid), av_s, names.get(uid, "?"))
+        img.paste(av, (int(PAD + 28 + rank_w), int(cy - av_s / 2)), av)
+        nm = sanitize(names.get(uid, str(uid)))
+        while nf.getlength(nm) > name_w and len(nm) > 3:
+            nm = nm[:-2] + "…"
+        d.text((name_x, cy), nm, font=nf, fill=FG, anchor="lm")
+        bw = max(6, (bar_r - bar_l) * float(val) / float(top))
+        d.rounded_rectangle((bar_l, cy - 11, bar_l + bw, cy + 11), radius=4, fill=color)
+        d.text((bar_l + bw + 12, cy), _fmt_metric(metric, val), font=vf, fill=MUTED, anchor="lm")
+
+    ry = y + 76
+    for rank, uid, val in rows:
+        row(ry, rank, uid, val)
+        ry += ROW
+    if mine:
+        d.text((PAD + 28 + rank_w - 14, ry + 2), "· · ·", font=_font(LATO_BOLD, 24), fill=MUTED, anchor="rm")
+        ry += 30
+        row(ry, *mine)
+
+    y += list_h + 24
+    total = f"razem {_fmt_metric(metric, lb['sum'])}"
+    v = lb.get("voice_since")
+    if v:
+        total += f" · voice liczony od {v.day}.{v.month:02d}.{v.year}"
+    d.text((PAD, y + 8), total, font=_font(LATO, 26), fill=MUTED)
     return _to_png(img)

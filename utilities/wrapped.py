@@ -265,3 +265,46 @@ def titles(s):
     if not t and s.get("messages", 0):
         t.append("Cichy obserwator" if s["messages"] < 30 else "Stały bywalec")
     return t[:3]
+
+
+METRICS = {
+    "wiadomosci": "wiadomości",
+    "voice": "godziny na voice",
+    "reakcje": "otrzymane reakcje",
+}
+
+
+def leaderboard(q, guild_id, sem: Semester, metric="wiadomosci", limit=15, me=None):
+    """
+    Long ranking ("topka") for one metric: humans only. Returns
+    {"rows": [(rank, user_id, value)], "total": participants, "mine": (rank, user_id, value) | None,
+     "sum": value summed over everyone}. `mine` is set only when `me` is ranked but outside the top `limit`.
+    Voice values are hours (voice logging started 2026-05-29).
+    """
+    p = {"g": guild_id, "me": 0, "s": sem.start, "e": sem.end}
+    if metric == "voice":
+        base = """v AS (SELECT user_id, sum(time_on) / 3600.0 AS val FROM voice
+                   WHERE guild_id = %(g)s AND date_join >= %(s)s AND date_join < %(e)s AND NOT is_bot
+                   GROUP BY user_id HAVING sum(time_on) > 0)"""
+    elif metric == "reakcje":
+        base = f"""{_REACTS}, v AS (SELECT author AS user_id, count(*)::numeric AS val FROM reacts GROUP BY author)"""
+    else:
+        base = f"""{_MSGS}, v AS (SELECT user_id, count(*)::numeric AS val FROM msgs GROUP BY user_id)"""
+    rows = q(f"""WITH {base},
+        r AS (SELECT user_id, val, rank() OVER (ORDER BY val DESC) AS rnk,
+                     row_number() OVER (ORDER BY val DESC, user_id) AS rn,
+                     count(*) OVER () AS total, sum(val) OVER () AS everyone FROM v)
+        SELECT user_id, val, rnk, rn, total, everyone FROM r
+        WHERE rn <= %(lim)s OR user_id = %(who)s ORDER BY rn""", {**p, "lim": int(limit), "who": int(me or 0)})
+    fmt = (lambda v: round(float(v), 1)) if metric == "voice" else (lambda v: int(v))
+    top = [(int(r["rnk"]), int(r["user_id"]), fmt(r["val"])) for r in rows if int(r["rn"]) <= limit]
+    mine = next(((int(r["rnk"]), int(r["user_id"]), fmt(r["val"])) for r in rows
+                 if int(r["rn"]) > limit), None)
+    since = _voice_since(q, p) if metric == "voice" else None
+    if since and (since - sem.start.date()).days < 7:
+        since = None   # logging covers the whole window, nothing to explain
+    return {
+        "period": sem.name, "metric": metric, "rows": top, "mine": mine, "voice_since": since,
+        "total": int(rows[0]["total"]) if rows else 0,
+        "sum": fmt(rows[0]["everyone"]) if rows else 0,
+    }

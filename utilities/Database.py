@@ -339,6 +339,10 @@ class Database:
                 # `semester` ('obecny' | 'poprzedni' | 'calosc' = whole history).
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS target TEXT")
                 cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS semester TEXT")
+                # kind='ranking' renders the long leaderboard: `metric` ('wiadomosci' |
+                # 'voice' | 'reakcje'), `top_n` people, period in `semester`.
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS metric TEXT")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS top_n INT")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
@@ -882,7 +886,8 @@ class Database:
                     )
                     RETURNING id, guild_id, channel_id, reply_to_message_id, requested_by,
                               template, captions, created_at, kind, gif_query,
-                              source_message_id, media_url, repeat_of, target, semester
+                              source_message_id, media_url, repeat_of, target, semester,
+                              metric, top_n
                     """,
                     (list(kinds), limit),
                 )
