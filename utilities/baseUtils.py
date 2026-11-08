@@ -91,6 +91,10 @@ class ConfigReader:
         "mention": ("N8N_MENTION_WEBHOOK", "http://host.docker.internal:5678", "fryderyk-mention"),
     }
 
+    def get_klipy_key(self) -> str:
+        """KLIPY GIF API key (KLIPY_API_KEY); empty disables GIF search."""
+        return os.getenv("KLIPY_API_KEY", "").strip()
+
     def get_n8n_url(self, feature: str, env: str) -> str:
         """
         Retrieves the n8n webhook URL for the given feature ('summarize', 'profile',

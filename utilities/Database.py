@@ -323,6 +323,16 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS meme_requests_pending_idx "
                     "ON meme_requests (id) WHERE status = 'pending'"
                 )
+                # GIF memes share the queue: kind='gif', the caption is captions[0], the
+                # media comes from a KLIPY search (gif_query) or a Discord message
+                # (source_message_id). media_url records what was actually used so a
+                # repeat (repeat_of = an older row id) posts the very same gif.
+                cursor.execute("ALTER TABLE meme_requests ALTER COLUMN template DROP NOT NULL")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'image'")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS gif_query TEXT")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS source_message_id BIGINT")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS media_url TEXT")
+                cursor.execute("ALTER TABLE meme_requests ADD COLUMN IF NOT EXISTS repeat_of BIGINT")
                 cursor.execute("ALTER TABLE voice ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
                 cursor.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE")
 
@@ -839,7 +849,8 @@ class Database:
                         ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED
                     )
                     RETURNING id, guild_id, channel_id, reply_to_message_id, requested_by,
-                              template, captions, created_at
+                              template, captions, created_at, kind, gif_query,
+                              source_message_id, media_url, repeat_of
                     """,
                     (limit,),
                 )
@@ -854,10 +865,18 @@ class Database:
             if self.connection_pool:
                 self.connection_pool.putconn(conn)
 
-    def finish_meme_request(self, request_id, status, error=None, posted_message_id=None):
-        """Marks a claimed meme request as done/failed."""
+    def finish_meme_request(self, request_id, status, error=None, posted_message_id=None, media_url=None):
+        """Marks a claimed meme request as done/failed (and records the gif actually used)."""
         self.execute_query(
             "UPDATE meme_requests SET status = %s, error = %s, posted_message_id = %s, "
-            "processed_at = now() WHERE id = %s",
-            (status, (error or None) and str(error)[:500], posted_message_id, request_id),
+            "media_url = COALESCE(%s, media_url), processed_at = now() WHERE id = %s",
+            (status, (error or None) and str(error)[:500], posted_message_id, media_url, request_id),
+        )
+
+    def get_meme_request(self, request_id, guild_id):
+        """One finished meme of this guild (for repeats); None if missing or from another guild."""
+        return self.fetch_one_dict(
+            "SELECT id, kind, template, captions, gif_query, media_url, source_message_id FROM meme_requests "
+            "WHERE id = %s AND guild_id = %s AND status = 'done'",
+            (request_id, guild_id),
         )
