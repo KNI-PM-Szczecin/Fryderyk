@@ -250,6 +250,23 @@ class Database:
                     )
                 ''')
 
+                # Activity order ("Order aktywności", cogs/activity_order.py): one row per
+                # guild that opted in. The feature does nothing until role_id is set, so
+                # a newly joined guild never gets roles handed out or stripped by surprise.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS activity_order_settings (
+                        guild_id BIGINT PRIMARY KEY,
+                        role_id BIGINT,
+                        log_channel_id BIGINT,
+                        window_days INT NOT NULL DEFAULT 30,
+                        gain_days INT NOT NULL DEFAULT 8,
+                        keep_days INT NOT NULL DEFAULT 4,
+                        min_messages INT NOT NULL DEFAULT 3,
+                        min_voice_minutes INT NOT NULL DEFAULT 15,
+                        last_run TIMESTAMPTZ
+                    )
+                ''')
+
                 # User Profiles Table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS user_profiles (
@@ -822,7 +839,33 @@ class Database:
         """
         return (guild_id, module) not in self._disabled_modules_cache
 
-    # --- GIF BLACKLIST METHODS ---
+    # --- ACTIVITY ORDER METHODS ---
+    ORDER_FIELDS = ("role_id", "log_channel_id", "window_days", "gain_days", "keep_days",
+                    "min_messages", "min_voice_minutes")
+
+    def get_order_settings(self, guild_id):
+        """Settings row as a dict, or None when the guild never configured the order."""
+        return self.fetch_one_dict("SELECT * FROM activity_order_settings WHERE guild_id = %s", (guild_id,))
+
+    def get_order_guilds(self):
+        return [r[0] for r in self.fetch_all(
+            "SELECT guild_id FROM activity_order_settings WHERE role_id IS NOT NULL") or []]
+
+    def put_order_settings(self, guild_id, **fields):
+        """Upsert; only the given (whitelisted) fields change."""
+        fields = {k: v for k, v in fields.items() if k in self.ORDER_FIELDS and v is not None}
+        cols = ["guild_id"] + list(fields)
+        sets = ", ".join(f"{k} = EXCLUDED.{k}" for k in fields) or "guild_id = EXCLUDED.guild_id"
+        self.execute_query(
+            f"INSERT INTO activity_order_settings ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
+            f"ON CONFLICT (guild_id) DO UPDATE SET {sets}",
+            (guild_id, *fields.values()),
+        )
+
+    def mark_order_run(self, guild_id):
+        self.execute_query("UPDATE activity_order_settings SET last_run = now() WHERE guild_id = %s", (guild_id,))
+
+        # --- GIF BLACKLIST METHODS ---
     def put_gif_blacklist_item(self, guild_id, disabled_id, item_type):
         """
         Adds an item (channel or role) to the random GIF reaction blacklist for a specific guild.

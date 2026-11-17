@@ -20,6 +20,7 @@ MODULES = {
     "meme": "Memy: /mem, /gif, „Podpisz GIF-a” i memy od agenta",
     "quote": "Karty z cytatami („Zacytuj”, „@Fryderyk zacytuj to”)",
     "wrapped": "Podsumowania semestru i całej historii (karty statystyk)",
+    "order": "Order aktywności (automatyczna rola za aktywność)",
 }
 
 # SlashOption choices map display label -> stored key.
